@@ -163,7 +163,25 @@ async function cargarModulo(moduloKey) {
 // MÓDULO DE NUEVO CONTROL E HISTORIAL
 // ==========================================
 
-// Abrir el formulario y precargar el último inspector guardado en el navegador
+// Función para alternar la visibilidad de los campos anuales/solicitud
+function cambiarTipoControl() {
+    const tipo = document.getElementById('input-tipocontrol').value;
+    const bloqueAnual = document.getElementById('bloque-anual');
+    const inputFechaPrueba = document.getElementById('input-fechapruebaanual');
+    const inputFechaMensual = document.getElementById('input-fechapruebamensual');
+
+    if (tipo === 'Anual' || tipo === 'A Solicitud') {
+        bloqueAnual.style.display = 'block';
+        inputFechaPrueba.setAttribute('required', 'true');
+        inputFechaMensual.setAttribute('required', 'true');
+    } else {
+        bloqueAnual.style.display = 'none';
+        inputFechaPrueba.removeAttribute('required');
+        inputFechaMensual.removeAttribute('required');
+    }
+}
+
+// Abrir el formulario y precargar datos iniciales
 function abrirFormularioControl(tabla, idElemento) {
     const modal = document.getElementById('modal-control');
     const titulo = document.getElementById('modal-titulo-elemento');
@@ -172,11 +190,15 @@ function abrirFormularioControl(tabla, idElemento) {
     document.getElementById('input-tabla').value = tabla;
     if (titulo) titulo.innerText = `Control para: ${idElemento}`;
     
-    // Recuperar el nombre del inspector de la memoria local si existe
+    // Autocompletar el inspector con el último guardado en localStorage
     const inspectorGuardado = localStorage.getItem('centinela_inspector');
     if (inspectorGuardado) {
         document.getElementById('input-realizo').value = inspectorGuardado;
     }
+
+    // Resetear el selector a mensual por defecto
+    document.getElementById('input-tipocontrol').value = 'Mensual';
+    cambiarTipoControl();
     
     if (modal) modal.style.display = 'flex';
 }
@@ -184,62 +206,115 @@ function abrirFormularioControl(tabla, idElemento) {
 function cerrarFormularioControl() {
     const modal = document.getElementById('modal-control');
     if (modal) modal.style.display = 'none';
+    document.getElementById('form-nuevo-control').reset();
 }
 
-// Procesar imagen, aplicar jerarquía y registrar control en Supabase
+// Guardar control validando la jerarquía completa en Supabase
 async function guardarControl(event) {
     event.preventDefault();
 
     const idch = document.getElementById('input-idch').value;
     const tabla = document.getElementById('input-tabla').value;
+    const tipoControl = document.getElementById('input-tipocontrol').value;
     const realizo = document.getElementById('input-realizo').value;
     const estado = document.getElementById('input-estado').value;
     const observacion = document.getElementById('input-observacion').value;
+    
+    // Componentes y estado físico
+    const llaveAlimentacion = document.getElementById('input-llavealimentacion').value;
+    const llaveTeatroDerecho = document.getElementById('input-llaveteatroderecho').value;
+    const llaveTeatroIzquierdo = document.getElementById('input-llaveteatroizquierdo').value;
+    const gabinete = document.getElementById('input-gabinete').value;
+    const pintura = document.getElementById('input-pintura').value;
+    const limpieza = document.getElementById('input-limpieza').value;
+    const engrasado = document.getElementById('input-engrasado').value;
+
     const archivoInput = document.getElementById('input-foto');
     
-    // Guardar el nombre del inspector en la memoria local del dispositivo
-    localStorage.setItem('centinela_inspector', realizo);
-
-    let fotoUrlFinal = null;
-    const fechaActual = new Date().toISOString();
-
-    // 1. Subir la imagen de forma ordenada usando la jerarquía: [modulo]/[idch]/[timestamp].jpg
-    if (archivoInput.files && archivoInput.files[0]) {
-        const archivo = archivoInput.files[0];
-        const rutaCarpeta = `${tabla.toLowerCase()}/${idch}`;
-        const nombreArchivo = `${Date.now()}.jpg`;
-        const rutaCompleta = `${rutaCarpeta}/${nombreArchivo}`;
-
-        const { error: uploadError } = await clienteSupabase.storage
-            .from('fotos-controles')
-            .upload(rutaCompleta, archivo);
-
-        if (uploadError) {
-            alert('Error al subir la imagen: ' + uploadError.message);
-            return;
-        }
-
-        const { data: publicURL } = clienteSupabase.storage
-            .from('fotos-controles')
-            .getPublicUrl(rutaCompleta);
-
-        fotoUrlFinal = publicURL.publicUrl;
+    // Validar obligatoriedad de la foto
+    if (!archivoInput.files || !archivoInput.files[0]) {
+        alert('La foto de auditoría es obligatoria.');
+        return;
     }
 
-    // 2. Insertar el registro histórico en la tabla 'Controles_H'
+    // Guardar nombre del inspector en memoria local
+    localStorage.setItem('centinela_inspector', realizo);
+
+    // Obtener mes actual del dispositivo en texto (Ej: "Septiembre")
+    const mesesAnio = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    const fechaDispositivo = new Date();
+    const mesActual = mesesAnio[fechaDispositivo.getMonth()];
+    const fechaIsoString = fechaDispositivo.toISOString();
+    const fechaSimple = fechaIsoString.split('T')[0];
+
+    // Variables condicionales para Anual / A Solicitud
+    let fechaPruebaAnualVal = null;
+    let pruebaAprobadaVal = null;
+    let movAguaVal = null;
+    let fechaPruebaMensualVal = null;
+    let controlMensualVal = null;
+
+    if (tipoControl === 'Mensual') {
+        controlMensualVal = mesActual; // Toma el mes del dispositivo
+    } else {
+        // Si es Anual o A Solicitud, complementa la información
+        fechaPruebaAnualVal = document.getElementById('input-fechapruebaanual').value;
+        pruebaAprobadaVal = document.getElementById('input-pruebaaprobada').value;
+        movAguaVal = document.getElementById('input-movagua').value;
+        fechaPruebaMensualVal = document.getElementById('input-fechapruebamensual').value;
+    }
+
+    let fotoUrlFinal = null;
+
+    // Subir imagen al Storage con la jerarquía ordenada
+    const archivo = archivoInput.files[0];
+    const rutaCarpeta = `${tabla.toLowerCase()}/${idch}`;
+    const nombreArchivo = `${Date.now()}.jpg`;
+    const rutaCompleta = `${rutaCarpeta}/${nombreArchivo}`;
+
+    const { error: uploadError } = await clienteSupabase.storage
+        .from('fotos-controles')
+        .upload(rutaCompleta, archivo);
+
+    if (uploadError) {
+        alert('Error al subir la imagen: ' + uploadError.message);
+        return;
+    }
+
+    const { data: publicURL } = clienteSupabase.storage
+        .from('fotos-controles')
+        .getPublicUrl(rutaCompleta);
+
+    fotoUrlFinal = publicURL.publicUrl;
+
+    // Construir el objeto exacto respetando las columnas de la tabla Controles_H
+    const datosRegistro = {
+        IDCH: idch,
+        TipoControl: tipoControl,
+        Controlmensual: controlMensualVal,
+        Controlrealizado: realizo,
+        Realizo: realizo,
+        ESTADO: estado.toUpperCase(),
+        LlaveAlimentacion: llaveAlimentacion,
+        LlaveTeatroDerecho: llaveTeatroDerecho,
+        LlaveTeatroIzquierdo: llaveTeatroIzquierdo,
+        Gabinete: gabinete,
+        Pintura: pintura,
+        Limpieza: limpieza,
+        Engrasado: engrasado,
+        Observacion: observacion,
+        PRUEBAANUAL: fechaPruebaAnualVal,
+        PruebaAprobada: pruebaAprobadaVal,
+        MovAgua: movAguaVal,
+        PlaningPruebaMes: fechaPruebaMensualVal,
+        Foto: fotoUrlFinal,
+        FechaFoto: fechaSimple
+    };
+
+    // Insertar en Supabase
     const { error: insertError } = await clienteSupabase
         .from('Controles_H')
-        .insert([
-            {
-                IDCH: idch,
-                Realizo: realizo,
-                ESTADO: estado,
-                Observacion: observacion,
-                Foto: fotoUrlFinal,
-                FechaFoto: fotoUrlFinal ? fechaActual : null,
-                PRUEBAANUAL: fechaActual.split('T')[0]
-            }
-        ]);
+        .insert([datosRegistro]);
 
     if (insertError) {
         alert('Error al guardar el control en la base de datos: ' + insertError.message);
@@ -247,6 +322,6 @@ async function guardarControl(event) {
         return;
     }
 
-    alert('¡Control registrado e imagen almacenada con éxito!');
+    alert('¡Control jerárquico registrado y foto guardada con éxito!');
     cerrarFormularioControl();
 }
