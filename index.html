@@ -15,7 +15,7 @@
     <!-- Barra Superior -->
     <header class="app-header">
         <div class="header-title">
-            <span class="logo-icon"><img src="img/bomberos.png" style="width: 24px; vertical-align: middle;"></span>
+            <span class="logo-icon"><img src="img/bomberos.jpg" style="width: 24px; height: 24px; border-radius: 4px; vertical-align: middle;"></span>
             <h1>Centinela 2.0</h1>
         </div>
         <button class="menu-toggle" onclick="toggleMenu()">☰</button>
@@ -28,14 +28,14 @@
             <button onclick="toggleMenu()" class="close-menu">&times;</button>
         </div>
         <ul class="drawer-list">
-            <li onclick="cargarModulo('ecas')"><img src="img/ecas.png" style="width: 20px; vertical-align: middle; margin-right: 8px;"> ECAS</li>
-            <li onclick="cargarModulo('extintores')"><img src="img/extintores.png" style="width: 20px; vertical-align: middle; margin-right: 8px;"> Extintores</li>
-            <li onclick="cargarModulo('hidrantes')"><img src="img/hidrantes.png" style="width: 20px; vertical-align: middle; margin-right: 8px;"> Hidrantes</li>
-            <li onclick="cargarModulo('valvulas')"><img src="img/valvulas.png" style="width: 20px; vertical-align: middle; margin-right: 8px;"> Válvulas</li>
-            <li onclick="cargarModulo('bomberos')"><img src="img/bomberos.png" style="width: 20px; vertical-align: middle; margin-right: 8px;"> Personal / Bomberos</li>
-            <li onclick="cargarModulo('ipp')"><img src="img/ipp.png" style="width: 20px; vertical-align: middle; margin-right: 8px;"> IPP</li>
-            <li onclick="cargarModulo('pecas')"><img src="img/pecas.png" style="width: 20px; vertical-align: middle; margin-right: 8px;"> PECAS</li>
-            <li onclick="cargarModulo('vecas')"><img src="img/vecas.png" style="width: 20px; vertical-align: middle; margin-right: 8px;"> VECAS</li>
+            <li onclick="cargarModulo('ecas')"><img src="img/ecas.jpg" style="width: 20px; height: 20px; border-radius: 4px; vertical-align: middle; margin-right: 8px;"> ECAS</li>
+            <li onclick="cargarModulo('extintores')"><img src="img/extintores.jpg" style="width: 20px; height: 20px; border-radius: 4px; vertical-align: middle; margin-right: 8px;"> Extintores</li>
+            <li onclick="cargarModulo('hidrantes')"><img src="img/hidrantes.jpg" style="width: 20px; height: 20px; border-radius: 4px; vertical-align: middle; margin-right: 8px;"> Hidrantes</li>
+            <li onclick="cargarModulo('valvulas')"><img src="img/valvulas.jpg" style="width: 20px; height: 20px; border-radius: 4px; vertical-align: middle; margin-right: 8px;"> Válvulas</li>
+            <li onclick="cargarModulo('bomberos')"><img src="img/bomberos.jpg" style="width: 20px; height: 20px; border-radius: 4px; vertical-align: middle; margin-right: 8px;"> Personal / Bomberos</li>
+            <li onclick="cargarModulo('ipp')"><img src="img/ipp.jpg" style="width: 20px; height: 20px; border-radius: 4px; vertical-align: middle; margin-right: 8px;"> IPP</li>
+            <li onclick="cargarModulo('pecas')"><img src="img/pecas.jpg" style="width: 20px; height: 20px; border-radius: 4px; vertical-align: middle; margin-right: 8px;"> PECAS</li>
+            <li onclick="cargarModulo('vecas')"><img src="img/vecas.jpg" style="width: 20px; height: 20px; border-radius: 4px; vertical-align: middle; margin-right: 8px;"> VECAS</li>
         </ul>
     </nav>
     <div id="drawer-overlay" class="overlay" onclick="toggleMenu()"></div>
@@ -43,35 +43,35 @@
     <!-- Pantalla Principal: Tarjetas con Fotos Reales -->
     <main id="main-content" class="dashboard-grid">
         <div class="card" onclick="cargarModulo('hidrantes')">
-            <div class="card-img"><img src="img/hidrantes.png" alt="Hidrantes"></div>
+            <div class="card-img"><img src="img/hidrantes.jpg" alt="Hidrantes" style="width: 100%; height: auto; border-radius: 8px;"></div>
             <div class="card-title">Hidrantes</div>
         </div>
         <div class="card" onclick="cargarModulo('extintores')">
-            <div class="card-img"><img src="img/extintores.png" alt="Extintores"></div>
+            <div class="card-img"><img src="img/extintores.jpg" alt="Extintores" style="width: 100%; height: auto; border-radius: 8px;"></div>
             <div class="card-title">Extintores</div>
         </div>
         <div class="card" onclick="cargarModulo('ecas')">
-            <div class="card-img"><img src="img/ecas.png" alt="ECAS"></div>
+            <div class="card-img"><img src="img/ecas.jpg" alt="ECAS" style="width: 100%; height: auto; border-radius: 8px;"></div>
             <div class="card-title">ECAS</div>
         </div>
         <div class="card" onclick="cargarModulo('valvulas')">
-            <div class="card-img"><img src="img/valvulas.png" alt="Válvulas"></div>
+            <div class="card-img"><img src="img/valvulas.jpg" alt="Válvulas" style="width: 100%; height: auto; border-radius: 8px;"></div>
             <div class="card-title">Válvulas</div>
         </div>
         <div class="card" onclick="cargarModulo('vecas')">
-            <div class="card-img"><img src="img/vecas.png" alt="VECAS"></div>
+            <div class="card-img"><img src="img/vecas.jpg" alt="VECAS" style="width: 100%; height: auto; border-radius: 8px;"></div>
             <div class="card-title">VECAS</div>
         </div>
         <div class="card" onclick="cargarModulo('pecas')">
-            <div class="card-img"><img src="img/pecas.png" alt="PECAS"></div>
+            <div class="card-img"><img src="img/pecas.jpg" alt="PECAS" style="width: 100%; height: auto; border-radius: 8px;"></div>
             <div class="card-title">PECAS</div>
         </div>
         <div class="card" onclick="cargarModulo('bomberos')">
-            <div class="card-img"><img src="img/bomberos.png" alt="Bomberos"></div>
+            <div class="card-img"><img src="img/bomberos.jpg" alt="Bomberos" style="width: 100%; height: auto; border-radius: 8px;"></div>
             <div class="card-title">Personal / Bomberos</div>
         </div>
         <div class="card" onclick="cargarModulo('ipp')">
-            <div class="card-img"><img src="img/ipp.png" alt="IPP"></div>
+            <div class="card-img"><img src="img/ipp.jpg" alt="IPP" style="width: 100%; height: auto; border-radius: 8px;"></div>
             <div class="card-title">IPP</div>
         </div>
     </main>
