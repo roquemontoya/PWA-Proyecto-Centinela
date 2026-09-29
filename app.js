@@ -38,7 +38,6 @@ async function cargarModulo(moduloKey) {
         toggleMenu();
     }
 
-    // Diccionario exacto con tus tablas reales de Supabase
     const tablasSupabase = {
         'hidrantes': 'hidrantes',
         'extintores': 'Extintores',
@@ -67,13 +66,11 @@ async function cargarModulo(moduloKey) {
         `;
     }
 
-    // Si ya existía un mapa anterior, lo borramos limpiamente para evitar conflictos
     if (mapa) {
         mapa.remove();
         mapa = null;
     }
 
-    // Inicializamos el mapa con una vista temporal
     mapa = L.map('mapa-modulo').setView([-31.416, -64.183], 15);
     
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
@@ -81,7 +78,6 @@ async function cargarModulo(moduloKey) {
         attribution: 'Tiles © Esri'
     }).addTo(mapa);
 
-    // Consultar datos en Supabase usando la tabla correcta
     const { data, error } = await clienteSupabase
         .from(nombreTabla)
         .select('*');
@@ -98,10 +94,8 @@ async function cargarModulo(moduloKey) {
         return;
     }
 
-    // Array para almacenar las coordenadas de todos los puntos válidos y hacer zoom automático
     let limitesPuntos = [];
 
-    // Dibujar los pines en el mapa si hay registros
     if (data && data.length > 0) {
         let pinesValidos = 0;
 
@@ -117,11 +111,18 @@ async function cargarModulo(moduloKey) {
                         pinesValidos++;
                         limitesPuntos.push([lat, lng]);
 
-                        let colorPin = 'green';
+                        // LÓGICA DE COLORES DE PINES REQUERIDA:
+                        // Operativo = Verde (#22c55e)
+                        // Observado = Amarillo (#eab308)
+                        // Anómalo = Rojo (#ef4444)
+                        let colorPin = '#22c55e'; 
                         const estado = (item.EstadoReferencia || item.estado || '').toLowerCase();
                         
-                        if (estado.includes('observado')) colorPin = 'orange';
-                        if (estado.includes('anómalo') || estado.includes('anomalo') || estado.includes('critico') || estado.includes('crítico')) colorPin = 'red';
+                        if (estado.includes('observado')) {
+                            colorPin = '#eab308'; // Amarillo
+                        } else if (estado.includes('anómalo') || estado.includes('anomalo') || estado.includes('critico') || estado.includes('crítico')) {
+                            colorPin = '#ef4444'; // Rojo
+                        }
 
                         const marcador = L.circleMarker([lat, lng], {
                             radius: 10,
@@ -132,7 +133,6 @@ async function cargarModulo(moduloKey) {
                             fillOpacity: 0.8
                         }).addTo(mapa);
 
-                        // Capturamos el ID numérico real de la tabla y la etiqueta de texto
                         const dbId = item.id;
                         const identificador = item.Etiqueta || item.id || 'Elemento';
                         
@@ -181,7 +181,22 @@ function cambiarTipoControl() {
     }
 }
 
-// Recibe el dbId numérico y la etiqueta descriptiva
+// Activar o desactivar campos de detalle según si la llave es "No conforme"
+function verificarDetalleLlave(tipo) {
+    const select = document.getElementById(`input-llave${tipo}`);
+    const contenedor = document.getElementById(`div-detalle-${tipo}`);
+    const inputDetalle = document.getElementById(`input-detalle-${tipo}`);
+
+    if (select.value === 'No conforme') {
+        contenedor.style.display = 'block';
+        inputDetalle.setAttribute('required', 'true');
+    } else {
+        contenedor.style.display = 'none';
+        inputDetalle.removeAttribute('required');
+        inputDetalle.value = ''; // Limpiar si cambia de opinión
+    }
+}
+
 function abrirFormularioControl(tabla, dbId, idElemento) {
     const modal = document.getElementById('modal-control');
     const titulo = document.getElementById('modal-titulo-elemento');
@@ -198,6 +213,13 @@ function abrirFormularioControl(tabla, dbId, idElemento) {
     
     document.getElementById('input-tipocontrol').value = 'Mensual';
     cambiarTipoControl();
+
+    // Resetear detalles de llaves ocultándolos al abrir
+    ['alimentacion', 'teatroderecho', 'teatroizquierdo'].forEach(tipo => {
+        document.getElementById(`div-detalle-${tipo}`).style.display = 'none';
+        document.getElementById(`input-detalle-${tipo}`).removeAttribute('required');
+        document.getElementById(`input-detalle-${tipo}`).value = '';
+    });
 
     if (modal) modal.style.display = 'flex';
 }
@@ -221,8 +243,14 @@ async function guardarControl(event) {
     const observacion = document.getElementById('input-observacion').value;
     
     const llaveAlimentacion = document.getElementById('input-llavealimentacion').value;
+    const detalleAlimentacion = document.getElementById('input-detalle-alimentacion').value;
+
     const llaveTeatroDerecho = document.getElementById('input-llaveteatroderecho').value;
+    const detalleTDerecho = document.getElementById('input-detalle-teatroderecho').value;
+
     const llaveTeatroIzquierdo = document.getElementById('input-llaveteatroizquierdo').value;
+    const detalleTIzquierdo = document.getElementById('input-detalle-teatroizquierdo').value;
+
     const gabinete = document.getElementById('input-gabinete').value;
     const pintura = document.getElementById('input-pintura').value;
     const limpieza = document.getElementById('input-limpieza').value;
@@ -285,7 +313,7 @@ async function guardarControl(event) {
 
     fotoUrlFinal = publicURL.publicUrl;
 
-    // Vinculamos el ID numérico de la tabla hidrantes en el campo ID, y la etiqueta en IDCH
+    // Objeto mapeado exactamente con las columnas SQL de Supabase (incluyendo detalles condicionales)
     const datosRegistro = {
         ID: parseInt(dbId) || null,
         IDCH: idch,
@@ -295,8 +323,11 @@ async function guardarControl(event) {
         Realizo: realizo,
         ESTADO: estado.toUpperCase(),
         LlaveAlimentacion: llaveAlimentacion,
+        DetalleLlaveAlimentacion: llaveAlimentacion === 'No conforme' ? detalleAlimentacion : null,
         LlaveTeatroDerecho: llaveTeatroDerecho,
+        DetalleTDerecho: llaveTeatroDerecho === 'No conforme' ? detalleTDerecho : null,
         LlaveTeatroIzquierdo: llaveTeatroIzquierdo,
+        DetalleTIzquierdo: llaveTeatroIzquierdo === 'No conforme' ? detalleTIzquierdo : null,
         Gabinete: gabinete,
         Pintura: pintura,
         Limpieza: limpieza,
