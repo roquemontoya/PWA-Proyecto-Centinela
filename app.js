@@ -159,7 +159,94 @@ async function cargarModulo(moduloKey) {
     }
 }
 
-// Función preliminar para el formulario de control
+// ==========================================
+// MÓDULO DE NUEVO CONTROL E HISTORIAL
+// ==========================================
+
+// Abrir el formulario y precargar el último inspector guardado en el navegador
 function abrirFormularioControl(tabla, idElemento) {
-    alert(`Abriendo plantilla de control para la tabla [${tabla}], Elemento: ${idElemento}`);
+    const modal = document.getElementById('modal-control');
+    const titulo = document.getElementById('modal-titulo-elemento');
+    
+    document.getElementById('input-idch').value = idElemento;
+    document.getElementById('input-tabla').value = tabla;
+    if (titulo) titulo.innerText = `Control para: ${idElemento}`;
+    
+    // Recuperar el nombre del inspector de la memoria local si existe
+    const inspectorGuardado = localStorage.getItem('centinela_inspector');
+    if (inspectorGuardado) {
+        document.getElementById('input-realizo').value = inspectorGuardado;
+    }
+    
+    if (modal) modal.style.display = 'flex';
+}
+
+function cerrarFormularioControl() {
+    const modal = document.getElementById('modal-control');
+    if (modal) modal.style.display = 'none';
+}
+
+// Procesar imagen, aplicar jerarquía y registrar control en Supabase
+async function guardarControl(event) {
+    event.preventDefault();
+
+    const idch = document.getElementById('input-idch').value;
+    const tabla = document.getElementById('input-tabla').value;
+    const realizo = document.getElementById('input-realizo').value;
+    const estado = document.getElementById('input-estado').value;
+    const observacion = document.getElementById('input-observacion').value;
+    const archivoInput = document.getElementById('input-foto');
+    
+    // Guardar el nombre del inspector en la memoria local del dispositivo
+    localStorage.setItem('centinela_inspector', realizo);
+
+    let fotoUrlFinal = null;
+    const fechaActual = new Date().toISOString();
+
+    // 1. Subir la imagen de forma ordenada usando la jerarquía: [modulo]/[idch]/[timestamp].jpg
+    if (archivoInput.files && archivoInput.files[0]) {
+        const archivo = archivoInput.files[0];
+        const rutaCarpeta = `${tabla.toLowerCase()}/${idch}`;
+        const nombreArchivo = `${Date.now()}.jpg`;
+        const rutaCompleta = `${rutaCarpeta}/${nombreArchivo}`;
+
+        const { error: uploadError } = await clienteSupabase.storage
+            .from('fotos-controles')
+            .upload(rutaCompleta, archivo);
+
+        if (uploadError) {
+            alert('Error al subir la imagen: ' + uploadError.message);
+            return;
+        }
+
+        const { data: publicURL } = clienteSupabase.storage
+            .from('fotos-controles')
+            .getPublicUrl(rutaCompleta);
+
+        fotoUrlFinal = publicURL.publicUrl;
+    }
+
+    // 2. Insertar el registro histórico en la tabla 'Controles_H'
+    const { error: insertError } = await clienteSupabase
+        .from('Controles_H')
+        .insert([
+            {
+                IDCH: idch,
+                Realizo: realizo,
+                ESTADO: estado,
+                Observacion: observacion,
+                Foto: fotoUrlFinal,
+                FechaFoto: fotoUrlFinal ? fechaActual : null,
+                PRUEBAANUAL: fechaActual.split('T')[0]
+            }
+        ]);
+
+    if (insertError) {
+        alert('Error al guardar el control en la base de datos: ' + insertError.message);
+        console.error(insertError);
+        return;
+    }
+
+    alert('¡Control registrado e imagen almacenada con éxito!');
+    cerrarFormularioControl();
 }
