@@ -181,7 +181,7 @@ function cambiarTipoControl() {
     }
 }
 
-// Abrir el formulario y precargar datos iniciales
+// Abrir el formulario y precargar el último inspector guardado en el navegador
 function abrirFormularioControl(tabla, idElemento) {
     const modal = document.getElementById('modal-control');
     const titulo = document.getElementById('modal-titulo-elemento');
@@ -190,26 +190,26 @@ function abrirFormularioControl(tabla, idElemento) {
     document.getElementById('input-tabla').value = tabla;
     if (titulo) titulo.innerText = `Control para: ${idElemento}`;
     
-    // Autocompletar el inspector con el último guardado en localStorage
+    // Recuperar el nombre del inspector de la memoria local si existe
     const inspectorGuardado = localStorage.getItem('centinela_inspector');
     if (inspectorGuardado) {
         document.getElementById('input-realizo').value = inspectorGuardado;
     }
-
+    
     // Resetear el selector a mensual por defecto
     document.getElementById('input-tipocontrol').value = 'Mensual';
     cambiarTipoControl();
-    
+
     if (modal) modal.style.display = 'flex';
 }
 
 function cerrarFormularioControl() {
     const modal = document.getElementById('modal-control');
     if (modal) modal.style.display = 'none';
-    document.getElementById('form-nuevo-control').reset();
+    const form = document.getElementById('form-nuevo-control');
+    if (form) form.reset();
 }
 
-// Guardar control validando la jerarquía completa en Supabase
 // Procesar imagen, aplicar jerarquía limpia y registrar control en Supabase
 async function guardarControl(event) {
     event.preventDefault();
@@ -291,11 +291,11 @@ async function guardarControl(event) {
 
     fotoUrlFinal = publicURL.publicUrl;
 
-    // Construir el objeto para la tabla Controles_H (conserva el idch original con todo su texto)
+    // Construir el objeto exacto respetando las mayúsculas y columnas de la tabla Controles_H
     const datosRegistro = {
         IDCH: idch,
         TipoControl: tipoControl,
-        Controlmensual: controlMensualVal,
+        CONTROLMENSUAL: controlMensualVal,
         Controlrealizado: realizo,
         Realizo: realizo,
         ESTADO: estado.toUpperCase(),
