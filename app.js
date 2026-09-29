@@ -32,7 +32,6 @@ function irInicio() {
 
 // Cargar dinámicamente el mapa y los datos de cada módulo
 async function cargarModulo(moduloKey) {
-    // Cerrar menú lateral si está abierto
     const drawer = document.getElementById('side-menu');
     if (drawer && drawer.classList.contains('open')) {
         toggleMenu();
@@ -111,17 +110,14 @@ async function cargarModulo(moduloKey) {
                         pinesValidos++;
                         limitesPuntos.push([lat, lng]);
 
-                        // LÓGICA DE COLORES DE PINES REQUERIDA:
-                        // Operativo = Verde (#22c55e)
-                        // Observado = Amarillo (#eab308)
-                        // Anómalo = Rojo (#ef4444)
+                        // Asignación de colores según estado: Operativo (Verde), Observado (Amarillo), Anómalo (Rojo)
                         let colorPin = '#22c55e'; 
                         const estado = (item.EstadoReferencia || item.estado || '').toLowerCase();
                         
                         if (estado.includes('observado')) {
-                            colorPin = '#eab308'; // Amarillo
+                            colorPin = '#eab308';
                         } else if (estado.includes('anómalo') || estado.includes('anomalo') || estado.includes('critico') || estado.includes('crítico')) {
-                            colorPin = '#ef4444'; // Rojo
+                            colorPin = '#ef4444';
                         }
 
                         const marcador = L.circleMarker([lat, lng], {
@@ -181,7 +177,7 @@ function cambiarTipoControl() {
     }
 }
 
-// Activar o desactivar campos de detalle según si la llave es "No conforme"
+// Activar o desactivar campos de detalle si la llave es "No conforme"
 function verificarDetalleLlave(tipo) {
     const select = document.getElementById(`input-llave${tipo}`);
     const contenedor = document.getElementById(`div-detalle-${tipo}`);
@@ -193,7 +189,7 @@ function verificarDetalleLlave(tipo) {
     } else {
         contenedor.style.display = 'none';
         inputDetalle.removeAttribute('required');
-        inputDetalle.value = ''; // Limpiar si cambia de opinión
+        inputDetalle.value = '';
     }
 }
 
@@ -214,7 +210,6 @@ function abrirFormularioControl(tabla, dbId, idElemento) {
     document.getElementById('input-tipocontrol').value = 'Mensual';
     cambiarTipoControl();
 
-    // Resetear detalles de llaves ocultándolos al abrir
     ['alimentacion', 'teatroderecho', 'teatroizquierdo'].forEach(tipo => {
         document.getElementById(`div-detalle-${tipo}`).style.display = 'none';
         document.getElementById(`input-detalle-${tipo}`).removeAttribute('required');
@@ -313,10 +308,13 @@ async function guardarControl(event) {
 
     fotoUrlFinal = publicURL.publicUrl;
 
-    // Objeto mapeado exactamente con las columnas SQL de Supabase (incluyendo detalles condicionales)
+    // Generar un IDCH único para cada control individual respetando la Primary Key de Supabase
+    const idControlUnico = `${dbId}_${Date.now()}`;
+
+    // Objeto mapeado con la relación Padre (ID) y la PK única del control (IDCH)
     const datosRegistro = {
         ID: parseInt(dbId) || null,
-        IDCH: idch,
+        IDCH: idControlUnico,
         TipoControl: tipoControl,
         CONTROLMENSUAL: controlMensualVal,
         Controlrealizado: realizo,
