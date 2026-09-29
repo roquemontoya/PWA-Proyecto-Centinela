@@ -73,7 +73,7 @@ async function cargarModulo(moduloKey) {
         mapa = null;
     }
 
-    // Inicializamos el mapa con una vista temporal (se reajustará automáticamente al leer los puntos)
+    // Inicializamos el mapa con una vista temporal
     mapa = L.map('mapa-modulo').setView([-31.416, -64.183], 15);
     
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
@@ -115,7 +115,7 @@ async function cargarModulo(moduloKey) {
 
                     if (!isNaN(lat) && !isNaN(lng)) {
                         pinesValidos++;
-                        limitesPuntos.push([lat, lng]); // Guardamos la coordenada para los límites
+                        limitesPuntos.push([lat, lng]);
 
                         let colorPin = 'green';
                         const estado = (item.EstadoReferencia || item.estado || '').toLowerCase();
@@ -132,13 +132,15 @@ async function cargarModulo(moduloKey) {
                             fillOpacity: 0.8
                         }).addTo(mapa);
 
+                        // Capturamos el ID numérico real de la tabla y la etiqueta de texto
+                        const dbId = item.id;
                         const identificador = item.Etiqueta || item.id || 'Elemento';
                         
                         marcador.bindPopup(`
                             <div style="color: #333; font-family: Arial, sans-serif;">
                                 <b>Etiqueta / ID:</b> ${identificador}<br>
                                 <b>Sector:</b> ${item.Sector || 'N/A'}<br>
-                                <button onclick="abrirFormularioControl('${nombreTabla}', '${identificador}')" style="margin-top:8px; padding:6px 12px; background:#22c55e; color:#000; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Nuevo Control</button>
+                                <button onclick="abrirFormularioControl('${nombreTabla}', '${dbId}', '${identificador}')" style="margin-top:8px; padding:6px 12px; background:#22c55e; color:#000; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Nuevo Control</button>
                             </div>
                         `);
                     }
@@ -146,7 +148,6 @@ async function cargarModulo(moduloKey) {
             }
         });
 
-        // Si encontramos puntos válidos, hacemos que el mapa haga zoom y se centre exactamente en ellos
         if (limitesPuntos.length > 0) {
             mapa.fitBounds(limitesPuntos, { padding: [50, 50] });
         }
@@ -163,7 +164,6 @@ async function cargarModulo(moduloKey) {
 // MÓDULO DE NUEVO CONTROL E HISTORIAL
 // ==========================================
 
-// Función para alternar la visibilidad de los campos anuales/solicitud
 function cambiarTipoControl() {
     const tipo = document.getElementById('input-tipocontrol').value;
     const bloqueAnual = document.getElementById('bloque-anual');
@@ -181,22 +181,21 @@ function cambiarTipoControl() {
     }
 }
 
-// Abrir el formulario y precargar el último inspector guardado en el navegador
-function abrirFormularioControl(tabla, idElemento) {
+// Recibe el dbId numérico y la etiqueta descriptiva
+function abrirFormularioControl(tabla, dbId, idElemento) {
     const modal = document.getElementById('modal-control');
     const titulo = document.getElementById('modal-titulo-elemento');
     
+    document.getElementById('input-id-db').value = dbId;
     document.getElementById('input-idch').value = idElemento;
     document.getElementById('input-tabla').value = tabla;
     if (titulo) titulo.innerText = `Control para: ${idElemento}`;
     
-    // Recuperar el nombre del inspector de la memoria local si existe
     const inspectorGuardado = localStorage.getItem('centinela_inspector');
     if (inspectorGuardado) {
         document.getElementById('input-realizo').value = inspectorGuardado;
     }
     
-    // Resetear el selector a mensual por defecto
     document.getElementById('input-tipocontrol').value = 'Mensual';
     cambiarTipoControl();
 
@@ -210,10 +209,10 @@ function cerrarFormularioControl() {
     if (form) form.reset();
 }
 
-// Procesar imagen, aplicar jerarquía limpia y registrar control en Supabase
 async function guardarControl(event) {
     event.preventDefault();
 
+    const dbId = document.getElementById('input-id-db').value;
     const idch = document.getElementById('input-idch').value;
     const tabla = document.getElementById('input-tabla').value;
     const tipoControl = document.getElementById('input-tipocontrol').value;
@@ -221,7 +220,6 @@ async function guardarControl(event) {
     const estado = document.getElementById('input-estado').value;
     const observacion = document.getElementById('input-observacion').value;
     
-    // Componentes y estado físico
     const llaveAlimentacion = document.getElementById('input-llavealimentacion').value;
     const llaveTeatroDerecho = document.getElementById('input-llaveteatroderecho').value;
     const llaveTeatroIzquierdo = document.getElementById('input-llaveteatroizquierdo').value;
@@ -232,16 +230,13 @@ async function guardarControl(event) {
 
     const archivoInput = document.getElementById('input-foto');
     
-    // Validar obligatoriedad de la foto
     if (!archivoInput.files || !archivoInput.files[0]) {
         alert('La foto de auditoría es obligatoria.');
         return;
     }
 
-    // Guardar nombre del inspector en memoria local
     localStorage.setItem('centinela_inspector', realizo);
 
-    // Obtener mes actual del dispositivo en texto
     const mesesAnio = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
     const fechaDispositivo = new Date();
     const mesActual = mesesAnio[fechaDispositivo.getMonth()];
@@ -265,11 +260,10 @@ async function guardarControl(event) {
 
     let fotoUrlFinal = null;
 
-    // LIMPIAR EL IDCH PARA SUPABASE STORAGE: Quita acentos, espacios y caracteres especiales de la ruta
     const idchLimpio = idch
         .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "") // Remueve tildes
-        .replace(/[^a-zA-Z0-9-_]/g, "_"); // Reemplaza espacios y símbolos por guiones bajos
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9-_]/g, "_");
 
     const archivo = archivoInput.files[0];
     const rutaCarpeta = `${tabla.toLowerCase()}/${idchLimpio}`;
@@ -291,8 +285,9 @@ async function guardarControl(event) {
 
     fotoUrlFinal = publicURL.publicUrl;
 
-    // Construir el objeto exacto respetando las mayúsculas y columnas de la tabla Controles_H
+    // Vinculamos el ID numérico de la tabla hidrantes en el campo ID, y la etiqueta en IDCH
     const datosRegistro = {
+        ID: parseInt(dbId) || null,
         IDCH: idch,
         TipoControl: tipoControl,
         CONTROLMENSUAL: controlMensualVal,
@@ -315,7 +310,6 @@ async function guardarControl(event) {
         FechaFoto: fechaSimple
     };
 
-    // Insertar en Supabase
     const { error: insertError } = await clienteSupabase
         .from('Controles_H')
         .insert([datosRegistro]);
