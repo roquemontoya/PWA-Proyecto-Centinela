@@ -210,6 +210,7 @@ function cerrarFormularioControl() {
 }
 
 // Guardar control validando la jerarquía completa en Supabase
+// Procesar imagen, aplicar jerarquía limpia y registrar control en Supabase
 async function guardarControl(event) {
     event.preventDefault();
 
@@ -240,14 +241,13 @@ async function guardarControl(event) {
     // Guardar nombre del inspector en memoria local
     localStorage.setItem('centinela_inspector', realizo);
 
-    // Obtener mes actual del dispositivo en texto (Ej: "Septiembre")
+    // Obtener mes actual del dispositivo en texto
     const mesesAnio = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
     const fechaDispositivo = new Date();
     const mesActual = mesesAnio[fechaDispositivo.getMonth()];
     const fechaIsoString = fechaDispositivo.toISOString();
     const fechaSimple = fechaIsoString.split('T')[0];
 
-    // Variables condicionales para Anual / A Solicitud
     let fechaPruebaAnualVal = null;
     let pruebaAprobadaVal = null;
     let movAguaVal = null;
@@ -255,9 +255,8 @@ async function guardarControl(event) {
     let controlMensualVal = null;
 
     if (tipoControl === 'Mensual') {
-        controlMensualVal = mesActual; // Toma el mes del dispositivo
+        controlMensualVal = mesActual;
     } else {
-        // Si es Anual o A Solicitud, complementa la información
         fechaPruebaAnualVal = document.getElementById('input-fechapruebaanual').value;
         pruebaAprobadaVal = document.getElementById('input-pruebaaprobada').value;
         movAguaVal = document.getElementById('input-movagua').value;
@@ -266,9 +265,14 @@ async function guardarControl(event) {
 
     let fotoUrlFinal = null;
 
-    // Subir imagen al Storage con la jerarquía ordenada
+    // LIMPIAR EL IDCH PARA SUPABASE STORAGE: Quita acentos, espacios y caracteres especiales de la ruta
+    const idchLimpio = idch
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "") // Remueve tildes
+        .replace(/[^a-zA-Z0-9-_]/g, "_"); // Reemplaza espacios y símbolos por guiones bajos
+
     const archivo = archivoInput.files[0];
-    const rutaCarpeta = `${tabla.toLowerCase()}/${idch}`;
+    const rutaCarpeta = `${tabla.toLowerCase()}/${idchLimpio}`;
     const nombreArchivo = `${Date.now()}.jpg`;
     const rutaCompleta = `${rutaCarpeta}/${nombreArchivo}`;
 
@@ -287,7 +291,7 @@ async function guardarControl(event) {
 
     fotoUrlFinal = publicURL.publicUrl;
 
-    // Construir el objeto exacto respetando las columnas de la tabla Controles_H
+    // Construir el objeto para la tabla Controles_H (conserva el idch original con todo su texto)
     const datosRegistro = {
         IDCH: idch,
         TipoControl: tipoControl,
