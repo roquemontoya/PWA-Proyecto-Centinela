@@ -41,40 +41,74 @@ export async function abrirFormularioControl(tabla, dbId, idElemento) {
     document.getElementById('input-tabla').value = tabla;
     if (titulo) titulo.innerText = `Control para: ${idElemento}`;
     
-    // Cargar bomberos activos en el desplegable
-    const selectRealizo = document.getElementById('input-realizo');
+    // === CARGAR TARJETAS VISUALES DE BOMBEROS ACTIVOS ===
+    const contenedorBomberos = document.getElementById('grid-seleccion-bombero');
+    const inputRealizo = document.getElementById('input-realizo');
     
-    if (selectRealizo.options.length <= 1) {
-        const { data, error } = await clienteSupabase
-            .from('Bomberos')
-            .select('Bombero, Estado')
-            .order('Bombero', { ascending: true });
+    contenedorBomberos.innerHTML = '<p style="color: #aaa; font-size: 13px;">Cargando personal...</p>';
+    inputRealizo.value = ''; // Reset
 
-        if (!error && data) {
-            selectRealizo.innerHTML = '<option value="" disabled>Selecciona un inspector</option>';
-            data.forEach(b => {
-                if ((b.Estado || '').toLowerCase() === 'activo') {
-                    const option = document.createElement('option');
-                    option.value = b.Bombero;
-                    option.textContent = b.Bombero;
-                    selectRealizo.appendChild(option);
-                }
-            });
+    const { data, error } = await clienteSupabase
+        .from('Bomberos')
+        .select('*')
+        .order('Bombero', { ascending: true });
+
+    if (error || !data) {
+        contenedorBomberos.innerHTML = '<p style="color: #ef4444; font-size: 13px;">Error al cargar personal</p>';
+    } else {
+        contenedorBomberos.innerHTML = '';
+        const bomberosActivos = data.filter(b => (b.Estado || '').toLowerCase() === 'activo');
+        
+        let inspectorPreseleccionado = localStorage.getItem('centinela_inspector') || '';
+
+        bomberosActivos.forEach(b => {
+            let fotoUrl = b.Foto;
+            if (fotoUrl && !fotoUrl.startsWith('http')) {
+                fotoUrl = `https://zgzhudcdxoentmfgdncf.supabase.co/storage/v1/object/public/FotosBomberos/${fotoUrl}`;
+            }
+            if (!fotoUrl) {
+                fotoUrl = 'https://via.placeholder.com/150?text=Sin+Foto';
+            }
+
+            const tarjeta = document.createElement('div');
+            tarjeta.className = 'tarjeta-bombero-select';
+            tarjeta.dataset.nombre = b.Bombero;
+            tarjeta.style.cssText = `
+                min-width: 80px; max-width: 80px; background: #2a2a2a; border: 2px solid #444; 
+                border-radius: 8px; padding: 8px 4px; text-align: center; cursor: pointer; 
+                flex-shrink: 0; transition: all 0.2s ease;
+            `;
+
+            tarjeta.innerHTML = `
+                <img src="${fotoUrl}" alt="${b.Bombero}" style="width: 45px; height: 45px; border-radius: 50%; object-fit: cover; margin-bottom: 4px; border: 1px solid #555;" onerror="this.src='https://via.placeholder.com/150?text=Error'">
+                <div style="font-size: 11px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${b.Bombero}">${b.Bombero.split(' ')[0]}</div>
+            `;
+
+            // Evento al hacer clic en la tarjeta del bombero
+            tarjeta.onclick = function() {
+                document.querySelectorAll('.tarjeta-bombero-select').forEach(t => {
+                    t.style.background = '#2a2a2a';
+                    t.style.borderColor = '#444';
+                });
+                tarjeta.style.background = '#22c55e22';
+                tarjeta.style.borderColor = '#22c55e';
+                inputRealizo.value = b.Bombero;
+            };
+
+            contenedorBomberos.appendChild(tarjeta);
+
+            // Autoseleccionar si coincide con el usuario guardado previamente
+            if (b.Bombero.toLowerCase() === inspectorPreseleccionado.toLowerCase()) {
+                tarjeta.click();
+            }
+        });
+
+        // Si hay elementos pero ninguno coincidió exactamente, seleccionamos el primero por defecto
+        if (!inputRealizo.value && bomberosActivos.length > 0) {
+            contenedorBomberos.firstChild.click();
         }
     }
-    
-    // Autoseleccionar al inspector guardado en localStorage
-    const inspectorGuardado = localStorage.getItem('centinela_inspector');
-    if (inspectorGuardado) {
-        selectRealizo.value = inspectorGuardado;
-        if (selectRealizo.value !== inspectorGuardado) {
-            const option = document.createElement('option');
-            option.value = inspectorGuardado;
-            option.textContent = inspectorGuardado + ' (Logueado)';
-            selectRealizo.appendChild(option);
-            selectRealizo.value = inspectorGuardado;
-        }
-    }
+    // ======================================================
     
     document.getElementById('input-tipocontrol').value = 'Mensual';
     cambiarTipoControl();
@@ -106,6 +140,11 @@ export async function guardarControl(event) {
     const estado = document.getElementById('input-estado').value;
     const observacion = document.getElementById('input-observacion').value;
     const fotoInput = document.getElementById('input-foto').files[0];
+
+    if (!realizo) {
+        alert('Por favor selecciona un inspector haciendo clic en su foto.');
+        return;
+    }
 
     let fotoUrl = '';
 
