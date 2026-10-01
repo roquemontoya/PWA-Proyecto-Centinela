@@ -84,7 +84,6 @@ export async function abrirFormularioControl(tabla, dbId, idElemento) {
                 <div style="font-size: 11px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${b.Bombero}">${b.Bombero.split(' ')[0]}</div>
             `;
 
-            // Evento al hacer clic en la tarjeta del bombero
             tarjeta.onclick = function() {
                 document.querySelectorAll('.tarjeta-bombero-select').forEach(t => {
                     t.style.background = '#2a2a2a';
@@ -97,13 +96,11 @@ export async function abrirFormularioControl(tabla, dbId, idElemento) {
 
             contenedorBomberos.appendChild(tarjeta);
 
-            // Autoseleccionar si coincide con el usuario guardado previamente
             if (b.Bombero.toLowerCase() === inspectorPreseleccionado.toLowerCase()) {
                 tarjeta.click();
             }
         });
 
-        // Si hay elementos pero ninguno coincidió exactamente, seleccionamos el primero por defecto
         if (!inputRealizo.value && bomberosActivos.length > 0) {
             contenedorBomberos.firstChild.click();
         }
@@ -132,40 +129,113 @@ export function cerrarFormularioControl() {
 export async function guardarControl(event) {
     event.preventDefault();
     
+    // Botón de submit a estado de carga
+    const btnSubmit = document.querySelector('button[type="submit"]');
+    const textoOriginal = btnSubmit.innerText;
+    btnSubmit.innerText = 'Subiendo...';
+    btnSubmit.disabled = true;
+    
+    // Captura de datos básicos
     const dbId = document.getElementById('input-id-db').value;
     const idch = document.getElementById('input-idch').value;
-    const tabla = document.getElementById('input-tabla').value;
     const tipoControl = document.getElementById('input-tipocontrol').value;
     const realizo = document.getElementById('input-realizo').value;
     const estado = document.getElementById('input-estado').value;
     const observacion = document.getElementById('input-observacion').value;
     const fotoInput = document.getElementById('input-foto').files[0];
 
+    // Componentes Físicos
+    const gabinete = document.getElementById('input-gabinete').value;
+    const pintura = document.getElementById('input-pintura').value;
+    const limpieza = document.getElementById('input-limpieza').value;
+    const engrasado = document.getElementById('input-engrasado').value;
+
     if (!realizo) {
         alert('Por favor selecciona un inspector haciendo clic en su foto.');
+        btnSubmit.innerText = textoOriginal;
+        btnSubmit.disabled = false;
         return;
     }
 
-    let fotoUrl = '';
+    let fotoUrl = null;
 
+    // 1. SUBIR FOTO AL BUCKET CORRECTO (Minúsculas y con guion)
     if (fotoInput) {
-        const nombreArchivo = `${Date.now()}_${fotoInput.name}`;
+        // Genera un nombre de archivo único limpiando espacios
+        const nombreArchivo = `${Date.now()}_${fotoInput.name.replace(/\s+/g, '_')}`;
+        
         const { data: uploadData, error: uploadError } = await clienteSupabase.storage
-            .from('FotosControles')
+            .from('fotos-controles') 
             .upload(nombreArchivo, fotoInput);
 
         if (uploadError) {
-            alert('Error al subir la foto: ' + uploadError.message);
+            alert('Error al subir la foto a Supabase: ' + uploadError.message);
+            btnSubmit.innerText = textoOriginal;
+            btnSubmit.disabled = false;
             return;
         }
 
         const { data: urlData } = clienteSupabase.storage
-            .from('FotosControles')
+            .from('fotos-controles')
             .getPublicUrl(nombreArchivo);
 
         fotoUrl = urlData.publicUrl;
     }
 
+    // Calcular el mes actual en texto para la columna CONTROLMENSUAL
+    const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const mesActual = meses[new Date().getMonth()];
+    const fechaHoy = new Date().toISOString().split('T')[0];
+
+    // 2. MAPEO EXACTO HACIA LA TABLA "Controles_H"
+    const registroNuevo = {
+        "ID": dbId,
+        "IDCH": idch,
+        "TipoControl": tipoControl,
+        "Realizo": realizo,
+        "Controlrealizado": realizo,
+        "CONTROLMENSUAL": mesActual,
+        "ESTADO": estado.toUpperCase(),
+        "LlaveAlimentacion": document.getElementById('input-llavealimentacion').value,
+        "DetalleLlaveAlimentacion": document.getElementById('input-detalle-alimentacion').value || null,
+        "LlaveTeatroDerecho": document.getElementById('input-llaveteatroderecho').value,
+        "DetalleTDerecho": document.getElementById('input-detalle-teatroderecho').value || null,
+        "LlaveTeatroIzquierdo": document.getElementById('input-llaveteatroizquierdo').value,
+        "DetalleTIzquierdo": document.getElementById('input-detalle-teatroizquierdo').value || null,
+        "Gabinete": gabinete,
+        "Pintura": pintura,
+        "Limpieza": limpieza,
+        "Engrasado": engrasado,
+        "Observacion": observacion || null,
+        "Foto": fotoUrl,
+        "FechaFoto": fechaHoy
+    };
+
+    // Si es un control Anual, añadimos los campos específicos a la inserción
+    if (tipoControl === 'Anual' || tipoControl === 'A Solicitud') {
+        registroNuevo["PRUEBAANUAL"] = document.getElementById('input-fechapruebaanual').value || null;
+        registroNuevo["PruebaAprobada"] = document.getElementById('input-pruebaaprobada').value || null;
+        registroNuevo["MovAgua"] = document.getElementById('input-movagua').value || null;
+    }
+
+    const { error: insertError } = await clienteSupabase
+        .from('Controles_H')
+        .insert([registroNuevo]);
+
+    if (insertError) {
+        alert('Error al guardar los datos en la tabla: ' + insertError.message);
+        btnSubmit.innerText = textoOriginal;
+        btnSubmit.disabled = false;
+        return;
+    }
+
+    // Guardar el inspector para la próxima vez
+    localStorage.setItem('centinela_inspector', realizo);
+
     alert('Control guardado exitosamente.');
+    
+    // Restaurar botón y cerrar
+    btnSubmit.innerText = textoOriginal;
+    btnSubmit.disabled = false;
     cerrarFormularioControl();
 }
