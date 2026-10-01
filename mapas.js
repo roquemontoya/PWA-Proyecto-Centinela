@@ -3,6 +3,8 @@
 // ==========================================
 
 import { clienteSupabase } from './supabaseClient.js';
+// Asegúrate de que abrirFormularioControl se importe si lo vas a usar, 
+// aunque en tu HTML se llama desde window.abrirFormularioControl
 import { abrirFormularioControl } from './controles.js';
 
 const MAPEO_MODULOS = {
@@ -21,9 +23,12 @@ let mapaActivo = null;
 export async function cargarModuloMapa(moduloKey, contenedor) {
     const config = MAPEO_MODULOS[moduloKey] || { tabla: moduloKey, bucket: `Fotos${moduloKey}`, nombreLegible: moduloKey };
     
-    // Forzar pantalla completa real de lado a lado
+    // =========================================================================
+    // CORRECCIÓN 1: Forzar pantalla completa real anulando el CSS
+    // =========================================================================
     contenedor.style.width = '100%';
-    contenedor.style.height = 'calc(100vh - 60px)';
+    contenedor.style.maxWidth = '100%'; // ESTO SOLUCIONA EL ESPACIO NEGRO (sobrescribe los 800px)
+    contenedor.style.height = 'calc(100vh - 125px)'; // Ajustado para que quepa entre el header y el footer verde
     contenedor.style.margin = '0';
     contenedor.style.padding = '0';
     contenedor.style.display = 'block';
@@ -39,7 +44,8 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
         return;
     }
 
-    contenedor.innerHTML = '<div id="mapa-leaflet" style="width: 100%; height: 100%;"></div>';
+    // El z-index: 1 asegura que los controles del mapa no queden por encima de tus modales o menús
+    contenedor.innerHTML = '<div id="mapa-leaflet" style="width: 100%; height: 100%; z-index: 1;"></div>';
 
     if (mapaActivo) {
         mapaActivo.remove();
@@ -124,11 +130,21 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
         marker.bindPopup(popupContent);
     });
 
-    // Salto automático exacto (`fitBounds`) a las coordenadas reales de los elementos
-    if (arrayCoordenadas.length > 0) {
-        const bounds = L.latLngBounds(arrayCoordenadas);
-        mapaActivo.fitBounds(bounds, { padding: [50, 50], maxZoom: 18 });
-    }
+    // =========================================================================
+    // CORRECCIÓN 2 y 3: Invalidar tamaño para forzar renderizado y auto-salto
+    // =========================================================================
+    setTimeout(() => {
+        if (mapaActivo) {
+            // Le dice a Leaflet que recalcule el ancho real de la pantalla
+            mapaActivo.invalidateSize();
+            
+            // Salto automático exacto (`fitBounds`) a las coordenadas reales
+            if (arrayCoordenadas.length > 0) {
+                const bounds = L.latLngBounds(arrayCoordenadas);
+                mapaActivo.fitBounds(bounds, { padding: [50, 50], maxZoom: 18 });
+            }
+        }
+    }, 250); // Un pequeño retraso asegura que el HTML ya pintó el contenedor al 100%
 }
 
 function extraerCoordenadas(item) {
