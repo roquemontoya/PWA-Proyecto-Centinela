@@ -136,7 +136,9 @@ export async function guardarControl(event) {
     btnSubmit.disabled = true;
     
     // Captura de datos básicos
-    const dbId = document.getElementById('input-id-db').value; // Este es el ID del Hidrante (Padre)
+    const tablaPadre = document.getElementById('input-tabla').value;
+    const dbId = document.getElementById('input-id-db').value; 
+    const idch = document.getElementById('input-idch').value;
     const tipoControl = document.getElementById('input-tipocontrol').value;
     const realizo = document.getElementById('input-realizo').value;
     const estado = document.getElementById('input-estado').value;
@@ -181,7 +183,7 @@ export async function guardarControl(event) {
     }
 
     // ========================================================
-    // CREACIÓN DEL IDCH (LLAVE ÚNICA) SOLICITADO
+    // CREACIÓN DEL IDCH (LLAVE ÚNICA)
     // ========================================================
     const ahora = new Date();
     const dia = String(ahora.getDate()).padStart(2, '0');
@@ -190,18 +192,16 @@ export async function guardarControl(event) {
     const horas = String(ahora.getHours()).padStart(2, '0');
     const minutos = String(ahora.getMinutes()).padStart(2, '0');
 
-    // Genera el string combinando el ID del hidrante + DD-MM-AAAA:hh:mm
     const idUnicoGenerado = `${dbId}_${dia}-${mes}-${anio}:${horas}:${minutos}`;
-    // ========================================================
 
     const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
     const mesActual = meses[ahora.getMonth()];
     const fechaHoy = ahora.toISOString().split('T')[0];
 
-    // 2. MAPEO A LA TABLA "Controles_H"
+    // 2. GUARDAR EN LA TABLA HIJA (Controles_H)
     const registroNuevo = {
-        "ID": dbId,                        // Relación con tabla padre (Hidrantes)
-        "IDCH": idUnicoGenerado,           // Llave primaria y única de la tabla hija
+        "ID": dbId,
+        "IDCH": idUnicoGenerado,
         "TipoControl": tipoControl,
         "Realizo": realizo,
         "Controlrealizado": realizo,
@@ -222,7 +222,6 @@ export async function guardarControl(event) {
         "FechaFoto": fechaHoy
     };
 
-    // Agregar campos de control anual si corresponde
     if (tipoControl === 'Anual' || tipoControl === 'A Solicitud') {
         registroNuevo["PRUEBAANUAL"] = document.getElementById('input-fechapruebaanual').value || null;
         registroNuevo["PruebaAprobada"] = document.getElementById('input-pruebaaprobada').value || null;
@@ -240,13 +239,31 @@ export async function guardarControl(event) {
         return;
     }
 
+    // ========================================================
+    // 3. ACTUALIZAR EL ESTADO EN LA TABLA PADRE (hidrantes)
+    // Usando la columna real: EstadoReferencia
+    // ========================================================
+    const { error: updateError } = await clienteSupabase
+        .from(tablaPadre)
+        .update({ EstadoReferencia: estado }) 
+        .eq('id', dbId); 
+
+    if (updateError) {
+        console.error("Error al actualizar la tabla padre:", updateError);
+    }
+
     // Guardar el inspector en caché para la próxima vez
     localStorage.setItem('centinela_inspector', realizo);
-
-    alert('Control guardado exitosamente.');
     
     // Restaurar el botón y limpiar formulario
     btnSubmit.innerText = textoOriginal;
     btnSubmit.disabled = false;
     cerrarFormularioControl();
+
+    // ========================================================
+    // 4. RECARGAR EL MAPA AUTOMÁTICAMENTE
+    // ========================================================
+    if (typeof window.cargarModulo === 'function') {
+        window.cargarModulo(tablaPadre);
+    }
 }
