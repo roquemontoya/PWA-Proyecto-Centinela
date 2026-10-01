@@ -14,7 +14,7 @@ export async function abrirControlExtintor(dbId, idElemento) {
     document.getElementById('input-tabla').value = 'Extintores';
     if (titulo) titulo.innerText = `Control Extintor: ${idElemento}`;
 
-    // Inyectar HTML específico de Extintores en el modal (reemplazando la sección de componentes)
+    // Inyectar exclusivamente el formulario de Extintores (sin campos de hidrantes)
     renderizarFormularioExtintorHTML();
 
     await cargarBomberosEnModal();
@@ -30,13 +30,12 @@ export async function abrirControlExtintor(dbId, idElemento) {
 }
 
 function renderizarFormularioExtintorHTML() {
-    // Puedes inyectar o asegurar que los campos específicos existan en el DOM del modal
     const contenedorComponentes = document.getElementById('contenedor-componentes-dinamicos');
     if (!contenedorComponentes) return;
 
     contenedorComponentes.innerHTML = `
         <fieldset style="border: 1px solid #444; border-radius: 5px; padding: 10px; margin-bottom: 12px;">
-            <legend style="font-size: 13px; color: #38bdf8; padding: 0 5px;">Verificación de Extintor</legend>
+            <legend style="font-size: 13px; color: #ef4444; padding: 0 5px;">🧯 Verificación de Extintor</legend>
             
             <label style="display: block; font-size: 13px; margin-top: 5px;">Manómetro / Presión:</label>
             <select id="input-manometro" required style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
@@ -145,20 +144,20 @@ export async function guardarControlExtintor(event) {
             "FechaFoto": fechaHoy
         };
 
-        // Insertar en Controles_E
+        // Insertar en la tabla Controles_E de Supabase
         const { error: insertError } = await clienteSupabase
             .from('Controles_E')
             .insert([registroNuevo]);
 
         if (insertError) throw new Error(insertError.message);
 
-        // Actualizar tabla padre (Extintores)
+        // Actualizar el estado en la tabla padre (Extintores)
         const { error: updateError } = await clienteSupabase
             .from('Extintores')
             .update({ EstadoReferencia: estado }) 
             .eq('id', dbId);
 
-        if (updateError) console.error("Error al actualizar tabla padre Extintores:", updateError);
+        if (updateError) console.error("Error al actualizar la tabla padre Extintores:", updateError);
 
         localStorage.setItem('centinela_inspector', realizo);
         btnSubmit.innerText = textoOriginal;
