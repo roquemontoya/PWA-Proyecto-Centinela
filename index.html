@@ -14,9 +14,13 @@
 
     <!-- Barra Superior -->
     <header class="app-header">
-        <div class="header-title">
-            <span class="logo-icon">🛡️</span>
-            <h1>Centinela 2.0</h1>
+        <div class="header-left-group">
+            <!-- Botón de Inicio en la cabecera -->
+            <button class="btn-header-inicio" onclick="irInicio()" title="Volver al Inicio">🏠</button>
+            <div class="header-title">
+                <span class="logo-icon">🛡️</span>
+                <h1>Centinela 2.0</h1>
+            </div>
         </div>
         <button class="menu-toggle" onclick="toggleMenu()">☰</button>
     </header>
@@ -78,14 +82,6 @@
 
     <!-- Contenedor dinámico para mapas -->
     <div id="vista-dinamica" class="dynamic-container" style="display: none;"></div>
-
-    <!-- Barra Inferior INICIO -->
-    <footer class="bottom-nav" onclick="irInicio()">
-        <div class="nav-item">
-            <span>🏠</span>
-            <span>INICIO</span>
-        </div>
-    </footer>
 
     <!-- Scripts -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
