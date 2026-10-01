@@ -5,7 +5,6 @@
 import { clienteSupabase } from './supabaseClient.js';
 import { abrirFormularioControl } from './controles.js';
 
-// Mapeo exacto de tablas y buckets en Supabase
 const MAPEO_MODULOS = {
     'hidrantes': { tabla: 'hidrantes', bucket: 'FotosHidrantes', nombreLegible: 'Hidrantes' },
     'extintores': { tabla: 'extintores', bucket: 'FotosExtintores', nombreLegible: 'Extintores' },
@@ -22,9 +21,15 @@ let mapaActivo = null;
 export async function cargarModuloMapa(moduloKey, contenedor) {
     const config = MAPEO_MODULOS[moduloKey] || { tabla: moduloKey, bucket: `Fotos${moduloKey}`, nombreLegible: moduloKey };
     
-    contenedor.innerHTML = `<div style="padding: 40px; text-align: center; color: #fff; font-family: Arial;">Cargando mapa y elementos de ${config.nombreLegible}...</div>`;
+    // Forzar pantalla completa real de lado a lado
+    contenedor.style.width = '100%';
+    contenedor.style.height = 'calc(100vh - 60px)';
+    contenedor.style.margin = '0';
+    contenedor.style.padding = '0';
+    contenedor.style.display = 'block';
 
-    // 1. Consultar datos en Supabase usando el nombre exacto de la tabla
+    contenedor.innerHTML = `<div style="padding: 40px; text-align: center; color: #fff; font-family: Arial;">Cargando mapa satelital de ${config.nombreLegible}...</div>`;
+
     const { data, error } = await clienteSupabase
         .from(config.tabla)
         .select('*');
@@ -34,48 +39,34 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
         return;
     }
 
-    // 2. Preparar contenedor del mapa
-    contenedor.innerHTML = '<div id="mapa-leaflet" style="width: 100%; height: calc(100vh - 60px);"></div>';
+    contenedor.innerHTML = '<div id="mapa-leaflet" style="width: 100%; height: 100%;"></div>';
 
-    // Destruir mapa anterior si existe para evitar conflictos
     if (mapaActivo) {
         mapaActivo.remove();
         mapaActivo = null;
     }
 
-    // Coordenadas por defecto (Córdoba)
-    let centroLat = -31.4201;
-    let centroLng = -64.1888;
-    let zoomInicial = 15;
+    mapaActivo = L.map('mapa-leaflet', {
+        zoomControl: true
+    }).setView([-31.4201, -64.1888], 15);
 
-    // Buscar el primer elemento con coordenadas válidas para centrar el mapa
-    if (data && data.length > 0) {
-        for (let item of data) {
-            const coords = extraerCoordenadas(item);
-            if (coords) {
-                centroLat = coords[0];
-                centroLng = coords[1];
-                break;
-            }
-        }
-    }
-
-    // Inicializar Leaflet
-    mapaActivo = L.map('mapa-leaflet').setView([centroLat, centroLng], zoomInicial);
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    // Capa satelital (Estilo Google Maps / Vista Aérea)
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         maxZoom: 19,
-        attribution: '© Centinela 2.0'
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-eGIS, and GIS User Community'
     }).addTo(mapaActivo);
 
     if (!data || data.length === 0) {
         return;
     }
 
-    // 3. Renderizar marcadores con foto y pastilla de estado
+    let arrayCoordenadas = [];
+
     data.forEach(item => {
         const coords = extraerCoordenadas(item);
         if (!coords) return;
+
+        arrayCoordenadas.push(coords);
 
         let estado = (item.Estado || 'Operativo').toLowerCase();
         let colorPin = '#22c55e'; // Verde (Operativo)
@@ -89,16 +80,24 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
             textoEstado = 'Anómalo';
         }
 
-        const marker = L.circleMarker(coords, {
-            radius: 9,
-            fillColor: colorPin,
-            color: '#fff',
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 0.85
-        }).addTo(mapaActivo);
+        // Crear ícono personalizado en forma de "gota" idéntico a Google Maps
+        const svgPin = `
+            <svg viewBox="0 0 24 24" width="34" height="34" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0px 3px 4px rgba(0,0,0,0.6));">
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="${colorPin}" stroke="#ffffff" stroke-width="2"/>
+                <circle cx="12" cy="9" r="3.5" fill="#ffffff"/>
+            </svg>
+        `;
 
-        // Procesar URL de la foto del elemento
+        const iconoGota = L.divIcon({
+            className: 'custom-google-pin',
+            html: svgPin,
+            iconSize: [34, 34],
+            iconAnchor: [17, 34],
+            popupAnchor: [0, -34]
+        });
+
+        const marker = L.marker(coords, { icon: iconoGota }).addTo(mapaActivo);
+
         let fotoUrl = item.Foto || item.FotoHidrante || '';
         if (fotoUrl && !fotoUrl.startsWith('http')) {
             fotoUrl = `https://zgzhudcdxoentmfgdncf.supabase.co/storage/v1/object/public/${config.bucket}/${fotoUrl}`;
@@ -106,7 +105,6 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
 
         const fotoHtml = fotoUrl ? `<img src="${fotoUrl}" alt="Foto Elemento" style="width: 100%; height: 110px; object-fit: cover; border-radius: 6px; margin-bottom: 6px; border: 1px solid #444;" onerror="this.style.display='none'">` : '';
 
-        // Pastilla visual de estado
         const pastillaHtml = `<span style="background: ${colorPin}; color: ${colorPin === '#eab308' ? '#000' : (colorPin === '#22c55e' ? '#000' : '#fff')}; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; display: inline-block;">${textoEstado}</span>`;
 
         const idElemento = item.Etiqueta || item.Idch || item.Nombre || item.id;
@@ -125,6 +123,12 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
 
         marker.bindPopup(popupContent);
     });
+
+    // Salto automático exacto (`fitBounds`) a las coordenadas reales de los elementos
+    if (arrayCoordenadas.length > 0) {
+        const bounds = L.latLngBounds(arrayCoordenadas);
+        mapaActivo.fitBounds(bounds, { padding: [50, 50], maxZoom: 18 });
+    }
 }
 
 function extraerCoordenadas(item) {
