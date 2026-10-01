@@ -3,11 +3,10 @@
 // ==========================================
 
 import { clienteSupabase } from './supabaseClient.js';
-import { abrirFormularioControl } from './controles.js';
 
 const MAPEO_MODULOS = {
     'hidrantes': { tabla: 'hidrantes', bucket: 'FotosHidrantes', nombreLegible: 'Hidrantes' },
-    'extintores': { tabla: 'extintores', bucket: 'FotosExtintores', nombreLegible: 'Extintores' },
+    'extintores': { tabla: 'Extintores', bucket: 'FotosExtintores', nombreLegible: 'Extintores' },
     'ecas': { tabla: 'ecas', bucket: 'FotosEcas', nombreLegible: 'ECAS' },
     'valvulas': { tabla: 'valvulas', bucket: 'FotosValvulas', nombreLegible: 'Válvulas' },
     'vecas': { tabla: 'vecas', bucket: 'FotosVecas', nombreLegible: 'VECAS' },
@@ -21,7 +20,7 @@ let mapaActivo = null;
 export async function cargarModuloMapa(moduloKey, contenedor) {
     const config = MAPEO_MODULOS[moduloKey] || { tabla: moduloKey, bucket: `Fotos${moduloKey}`, nombreLegible: moduloKey };
     
-    // Configuración de pantalla completa
+    // Configuración de pantalla completa para el mapa
     contenedor.style.width = '100%';
     contenedor.style.maxWidth = '100%'; 
     contenedor.style.height = 'calc(100vh - 125px)'; 
@@ -40,158 +39,92 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
         return;
     }
 
-    // --- DEPÓSITO DE ALERTAS PARA DIAGNÓSTICO ---
-    if (!data || data.length === 0) {
-        alert(`AVISO CENTINELA: La tabla "${config.tabla}" está vacía en Supabase o los permisos (RLS) están bloqueando la lectura.`);
-        contenedor.innerHTML = `<div style="padding: 20px; color: #aaa; text-align: center;">No hay registros en la tabla ${config.nombreLegible}.</div>`;
-        return;
-    }
-
-    contenedor.innerHTML = '<div id="mapa-leaflet" style="width: 100%; height: 100%; z-index: 1;"></div>';
+    // Limpiar contenedor y preparar el div del mapa
+    contenedor.innerHTML = `<div id="mapa-modulo" style="width: 100%; height: 100%;"></div>`;
 
     if (mapaActivo) {
         mapaActivo.remove();
         mapaActivo = null;
     }
 
-    mapaActivo = L.map('mapa-leaflet', {
-        zoomControl: true
-    }).setView([-31.4201, -64.1888], 15); // Vista por defecto (Córdoba)
+    // Coordenadas iniciales (Centro de planta / Córdoba por defecto)
+    let centroLat = -31.4168;
+    let centroLon = -64.1834;
 
-    // Capa satelital
+    mapaActivo = L.map('mapa-modulo').setView([centroLat, centroLon], 17);
+
+    // Capa satelital ESRI World Imagery
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        maxZoom: 19,
-        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA'
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+        maxZoom: 22
     }).addTo(mapaActivo);
 
-    let arrayCoordenadas = [];
-    let itemsSinCoordenadas = 0;
+    let bounds = [];
 
-    data.forEach(item => {
-        const coords = extraerCoordenadas(item);
-        
-        if (!coords) {
-            itemsSinCoordenadas++;
-            return; // Si no hay coordenadas, saltamos al siguiente elemento
-        }
+    // Procesar elementos y pines
+    (data || []).forEach(item => {
+        let lat = null;
+        let lon = null;
 
-        arrayCoordenadas.push(coords);
-
-        // --- CORRECCIÓN AQUÍ: Usamos EstadoReferencia como prioridad ---
-        let estadoCrudo = item.EstadoReferencia || item.Estado || 'Operativo';
-        let estado = String(estadoCrudo).toLowerCase().trim();
-        
-        let colorPin = '#22c55e'; // Verde
-        let textoEstado = estadoCrudo;
-
-        if (estado.includes('observado')) {
-            colorPin = '#eab308'; // Amarillo / Naranja
-            textoEstado = 'Observado';
-        } else if (estado.includes('anomalo') || estado.includes('anómalo') || estado.includes('no operativo')) {
-            colorPin = '#ef4444'; // Rojo
-            textoEstado = 'Anómalo';
-        } else if (estado.includes('operativo') || estado.includes('normal')) {
-            colorPin = '#22c55e';
-            textoEstado = 'Operativo';
-        }
-
-        const svgPin = `
-            <svg viewBox="0 0 24 24" width="34" height="34" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0px 3px 4px rgba(0,0,0,0.6));">
-                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="${colorPin}" stroke="#ffffff" stroke-width="2"/>
-                <circle cx="12" cy="9" r="3.5" fill="#ffffff"/>
-            </svg>
-        `;
-
-        const iconoGota = L.divIcon({
-            className: 'custom-google-pin',
-            html: svgPin,
-            iconSize: [34, 34],
-            iconAnchor: [17, 34],
-            popupAnchor: [0, -34]
-        });
-
-        const marker = L.marker(coords, { icon: iconoGota }).addTo(mapaActivo);
-
-        let fotoUrl = item.Foto || item.FotoHidrante || '';
-        if (fotoUrl && !fotoUrl.startsWith('http')) {
-            fotoUrl = `https://zgzhudcdxoentmfgdncf.supabase.co/storage/v1/object/public/${config.bucket}/${fotoUrl}`;
-        }
-
-        const fotoHtml = fotoUrl ? `<img src="${fotoUrl}" alt="Foto Elemento" style="width: 100%; height: 110px; object-fit: cover; border-radius: 6px; margin-bottom: 6px; border: 1px solid #444;" onerror="this.style.display='none'">` : '';
-
-        const pastillaHtml = `<span style="background: ${colorPin}; color: #fff; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; display: inline-block;">${textoEstado}</span>`;
-
-        const idElemento = item.Etiqueta || item.Idch || item.Nombre || item.id || 'Desconocido';
-
-        const popupContent = `
-            <div style="font-family: Arial, sans-serif; color: #222; max-width: 220px; line-height: 1.3;">
-                ${fotoHtml}
-                <div style="font-weight: bold; font-size: 13px; margin-bottom: 4px; color: #111;">ID / Etiqueta: ${idElemento}</div>
-                <div style="font-size: 12px; margin-bottom: 6px; color: #555;">Sector: ${item.Sector || 'N/D'}</div>
-                <div style="font-size: 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 5px;">
-                    Estado: ${pastillaHtml}
-                </div>
-                <button onclick="window.abrirFormularioControl('${config.tabla}', '${item.id}', '${idElemento.replace(/'/g, "\\'")}')" style="background: #22c55e; color: #000; border: none; padding: 7px 12px; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%; font-size: 12px; text-align: center;">Nuevo Control</button>
-            </div>
-        `;
-
-        marker.bindPopup(popupContent);
-    });
-
-    // --- ALERTA SI NINGÚN ITEM TENÍA COORDENADAS ---
-    if (arrayCoordenadas.length === 0 && data.length > 0) {
-        alert(`AVISO CENTINELA: Se descargaron ${data.length} registros de Supabase, pero NINGUNO pudo ser mapeado. Revisa cómo se llaman las columnas de Latitud/Longitud en tu base de datos.`);
-    }
-
-    setTimeout(() => {
-        if (mapaActivo) {
-            mapaActivo.invalidateSize();
-            if (arrayCoordenadas.length > 0) {
-                const bounds = L.latLngBounds(arrayCoordenadas);
-                mapaActivo.fitBounds(bounds, { padding: [50, 50], maxZoom: 18 });
+        // Intentar extraer coordenadas del campo WKT (ej: POINT (-64.239383 -31.470898))
+        if (item.WKT && typeof item.WKT === 'string' && item.WKT.includes('POINT')) {
+            try {
+                const coordsStr = item.WKT.replace('POINT (', '').replace(')', '').trim();
+                const partes = coordsStr.split(/\s+/);
+                if (partes.length >= 2) {
+                    lon = parseFloat(partes[0]);
+                    lat = parseFloat(partes[1]);
+                }
+            } catch (e) {
+                console.error("Error parseando WKT:", item.WKT);
             }
         }
-    }, 250);
-}
 
-// ==========================================================
-// EXTRACTOR INTELIGENTE DE COORDENADAS
-// ==========================================================
-function extraerCoordenadas(item) {
-    let lat = null;
-    let lng = null;
-    let puntoString = null;
+        if (lat && lon && !isNaN(lat) && !isNaN(lon)) {
+            bounds.push([lat, lon]);
 
-    const keys = Object.keys(item);
-    for (let key of keys) {
-        const k = key.toLowerCase();
-        
-        if (k === 'latitud' || k === 'lat') lat = parseFloat(item[key]);
-        if (k === 'longitud' || k === 'lng' || k === 'lon' || k === 'long') lng = parseFloat(item[key]);
-        if (k === 'ubicacion' || k === 'ubicación' || k === 'geom' || k === 'coordenadas' || k === 'coordenada') {
-            puntoString = item[key];
+            // Determinar color del marcador según EstadoReferencia
+            let colorPin = '#22c55e'; // Verde (Operativo)
+            let estadoTexto = item.EstadoReferencia || 'Operativo';
+            
+            const estLower = String(estadoTexto).toLowerCase();
+            if (estLower.includes('observado')) {
+                colorPin = '#eab308'; // Amarillo
+            } else if (estLower.includes('anomalo') || estLower.includes('anómalo') || estLower.includes('no operativo')) {
+                colorPin = '#ef4444'; // Rojo
+            }
+
+            // Crear marcador personalizado con Leaflet DivIcon
+            const iconoPin = L.divIcon({
+                className: 'custom-pin',
+                html: `<div style="background-color: ${colorPin}; width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 6px rgba(0,0,0,0.8);"></div>`,
+                iconSize: [14, 14],
+                iconAnchor: [7, 7]
+            });
+
+            const marker = L.marker([lat, lon], { icon: iconoPin }).addTo(mapaActivo);
+
+            let idElemento = item.NombreEtiqueta || item.Nombre || item.nombre || `Elemento #${item.id}`;
+            
+            let pastillaHtml = `<span style="background: ${colorPin}; color: #000; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 11px;">${estadoTexto.toUpperCase()}</span>`;
+
+            const popupContent = `
+                <div style="font-family: Arial, sans-serif; color: #333; min-width: 180px;">
+                    <div style="font-weight: bold; font-size: 13px; margin-bottom: 4px; color: #111;">${idElemento}</div>
+                    <div style="font-size: 12px; margin-bottom: 6px; color: #555;">Sector: ${item.Sector || 'N/D'}</div>
+                    <div style="font-size: 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 5px;">
+                        Estado: ${pastillaHtml}
+                    </div>
+                    <button onclick="window.abrirFormularioControl('${config.tabla}', '${item.id}', '${idElemento.replace(/'/g, "\\'")}')" style="background: #22c55e; color: #000; border: none; padding: 7px 12px; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%; font-size: 12px; text-align: center;">Nuevo Control</button>
+                </div>
+            `;
+
+            marker.bindPopup(popupContent);
         }
+    });
+
+    // Ajustar zoom del mapa si hay marcadores válidos
+    if (bounds.length > 0) {
+        mapaActivo.fitBounds(bounds, { padding: [50, 50], maxZoom: 19 });
     }
-
-    if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
-        return [lat, lng];
-    }
-
-    if (typeof puntoString === 'string') {
-        const matchPoint = puntoString.match(/POINT\s*\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/i);
-        if (matchPoint) {
-            const pLng = parseFloat(matchPoint[1]);
-            const pLat = parseFloat(matchPoint[2]);
-            if (!isNaN(pLat) && !isNaN(pLng)) return [pLat, pLng];
-        }
-
-        const partes = puntoString.split(',');
-        if (partes.length >= 2) {
-            const pLat = parseFloat(partes[0].trim());
-            const pLng = parseFloat(partes[1].trim());
-            if (!isNaN(pLat) && !isNaN(pLng)) return [pLat, pLng];
-        }
-    }
-
-    return null;
 }

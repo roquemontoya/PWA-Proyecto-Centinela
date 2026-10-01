@@ -59,7 +59,7 @@ window.abrirFormularioControl = function(tabla, dbId, idElemento) {
     const tablaLower = tabla.toLowerCase();
     if (tablaLower === 'hidrantes') {
         abrirControlHidrante(dbId, idElemento);
-    } else if (tablaLower === 'extintores') {
+    } else if (tablaLower === 'extintores' || tablaLower === 'extintor') {
         abrirControlExtintor(dbId, idElemento);
     } else {
         alert(`Módulo de control para ${tabla} aún no implementado.`);
@@ -71,7 +71,7 @@ window.guardarControl = function(event) {
     const tabla = document.getElementById('input-tabla').value.toLowerCase();
     if (tabla === 'hidrantes') {
         guardarControlHidrante(event);
-    } else if (tabla === 'extintores') {
+    } else if (tabla === 'extintores' || tabla === 'extintor') {
         guardarControlExtintor(event);
     }
 };
