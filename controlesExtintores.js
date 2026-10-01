@@ -3,7 +3,7 @@
 // ==========================================
 
 import { clienteSupabase } from './supabaseClient.js';
-import { verificarEstadoControl, cargarBomberosEnModal, cerrarFormularioControl, subirFotoStorage } from './controlesBase.js';
+import { cargarBomberosEnModal, cerrarFormularioControl, subirFotoStorage } from './controlesBase.js';
 
 export async function abrirControlExtintor(dbId, idElemento) {
     const modal = document.getElementById('modal-control');
@@ -14,8 +14,14 @@ export async function abrirControlExtintor(dbId, idElemento) {
     document.getElementById('input-tabla').value = 'Extintores';
     if (titulo) titulo.innerText = `Control Extintor: ${idElemento}`;
 
-    // Inyectar exclusivamente el formulario de Extintores (sin campos de hidrantes)
-    renderizarFormularioExtintorHTML();
+    // Consultar datos actuales del extintor (Padre) para precargar los campos del CSV
+    const { data: extData } = await clienteSupabase
+        .from('Extintores')
+        .select('*')
+        .eq('id', dbId)
+        .single();
+
+    renderizarFormularioExtintorHTML(extData || {});
 
     await cargarBomberosEnModal();
     
@@ -24,18 +30,36 @@ export async function abrirControlExtintor(dbId, idElemento) {
 
     const estadoSelect = document.getElementById('input-estado');
     if (estadoSelect) estadoSelect.value = 'Operativo';
-    verificarEstadoControl();
+
+    // Ocultar cualquier bloque de anomalía heredado
+    const bloqueAnomalia = document.getElementById('bloque-anomalia');
+    if (bloqueAnomalia) bloqueAnomalia.style.display = 'none';
 
     if (modal) modal.style.display = 'flex';
 }
 
-function renderizarFormularioExtintorHTML() {
+function renderizarFormularioExtintorHTML(ext) {
     const contenedorComponentes = document.getElementById('contenedor-componentes-dinamicos');
     if (!contenedorComponentes) return;
 
     contenedorComponentes.innerHTML = `
+        <!-- DATOS DEL EXTRACTO CSV / PADRE -->
+        <fieldset style="border: 1px solid #38bdf8; border-radius: 5px; padding: 10px; margin-bottom: 12px; background: #182830;">
+            <legend style="font-size: 13px; color: #38bdf8; padding: 0 5px;">📋 Datos del Extintor (Registro)</legend>
+            
+            <label style="display: block; font-size: 12px; margin-top: 5px; color: #ccc;">Tipo de Extintor:</label>
+            <input type="text" id="input-tipo-extintor" value="${ext.TipoExtintor || ''}" style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 13px;">
+
+            <label style="display: block; font-size: 12px; color: #ccc;">Vencimiento (Carga):</label>
+            <input type="text" id="input-vencimiento-extintor" value="${ext.Vencimiento || ''}" placeholder="Ej: ene-27" style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 13px;">
+
+            <label style="display: block; font-size: 12px; color: #ccc;">Prueba Hidráulica (Año):</label>
+            <input type="text" id="input-ph-extintor" value="${ext.PruebaHidraulica || ''}" placeholder="Ej: 2027" style="width: 100%; padding: 6px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 13px;">
+        </fieldset>
+
+        <!-- VERIFICACIÓN TÉCNICA -->
         <fieldset style="border: 1px solid #444; border-radius: 5px; padding: 10px; margin-bottom: 12px;">
-            <legend style="font-size: 13px; color: #ef4444; padding: 0 5px;">🧯 Verificación de Extintor</legend>
+            <legend style="font-size: 13px; color: #ef4444; padding: 0 5px;">🧯 Verificación en Campo</legend>
             
             <label style="display: block; font-size: 13px; margin-top: 5px;">Manómetro / Presión:</label>
             <select id="input-manometro" required style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
@@ -75,37 +99,21 @@ export async function guardarControlExtintor(event) {
     btnSubmit.disabled = true;
     
     const dbId = document.getElementById('input-id-db').value; 
-    const idch = document.getElementById('input-idch').value;
     const tipoControl = document.getElementById('input-tipocontrol').value;
     const realizo = document.getElementById('input-realizo').value;
     const estado = document.getElementById('input-estado').value; 
     const observacion = document.getElementById('input-observacion').value;
     const fotoInput = document.getElementById('input-foto').files[0];
 
+    const tipoExtintorVal = document.getElementById('input-tipo-extintor').value;
+    const vencimientoVal = document.getElementById('input-vencimiento-extintor').value;
+    const phVal = document.getElementById('input-ph-extintor').value;
+
     if (!realizo) {
         alert('Por favor selecciona un inspector haciendo clic en su foto.');
         btnSubmit.innerText = textoOriginal;
         btnSubmit.disabled = false;
         return;
-    }
-
-    let razonAnomalia = null;
-    let eventoNumero = null;
-    let reportadoFecha = null;
-    let reportadoPor = null;
-
-    if (estado === 'Anomalo') {
-        razonAnomalia = document.getElementById('input-anomalia-razon').value || null;
-        eventoNumero = document.getElementById('input-evento-numero').value || null;
-        reportadoFecha = document.getElementById('input-reportado-fecha').value || null;
-        reportadoPor = document.getElementById('input-reportado-por').value || null;
-
-        if (!reportadoPor) {
-            alert('Por favor selecciona qué bombero reportó la anomalía haciendo clic en su foto.');
-            btnSubmit.innerText = textoOriginal;
-            btnSubmit.disabled = false;
-            return;
-        }
     }
 
     try {
@@ -123,38 +131,42 @@ export async function guardarControlExtintor(event) {
         const mesActual = meses[ahora.getMonth()];
         const fechaHoy = ahora.toISOString().split('T')[0];
 
+        // Registro limpio para la tabla hija Controles_E (usando id_extintor)
         const registroNuevo = {
-            "ID": Number(dbId),
+            "id_extintor": Number(dbId),
             "IDCE": idUnicoGenerado,
             "TipoControl": tipoControl,
             "Realizo": realizo,
             "Controlrealizado": realizo,
             "CONTROLMENSUAL": mesActual,
             "ESTADO": estado.toUpperCase(),
+            "TipoExtintorControl": tipoExtintorVal,
+            "VencimientoControl": vencimientoVal,
+            "PruebaHidraulicaControl": phVal,
             "Manometro": document.getElementById('input-manometro').value,
             "Precinto": document.getElementById('input-precinto').value,
             "MangueraBoquilla": document.getElementById('input-manguera').value,
             "SoporteGabinete": document.getElementById('input-soporte').value,
             "Observacion": observacion || null,
-            "ANOMALIAS": razonAnomalia,
-            "EventoNumero": eventoNumero ? Number(eventoNumero) : null,
-            "ReportadoFecha": reportadoFecha,
-            "ReportadoPor": reportadoPor,
             "Foto": fotoUrl,
             "FechaFoto": fechaHoy
         };
 
-        // Insertar en la tabla Controles_E de Supabase
         const { error: insertError } = await clienteSupabase
             .from('Controles_E')
             .insert([registroNuevo]);
 
         if (insertError) throw new Error(insertError.message);
 
-        // Actualizar el estado en la tabla padre (Extintores)
+        // Actualizar los datos estáticos del Padre (Extintores) y su EstadoReferencia
         const { error: updateError } = await clienteSupabase
             .from('Extintores')
-            .update({ EstadoReferencia: estado }) 
+            .update({ 
+                TipoExtintor: tipoExtintorVal,
+                Vencimiento: vencimientoVal,
+                PruebaHidraulica: phVal,
+                EstadoReferencia: estado 
+            }) 
             .eq('id', dbId);
 
         if (updateError) console.error("Error al actualizar la tabla padre Extintores:", updateError);
