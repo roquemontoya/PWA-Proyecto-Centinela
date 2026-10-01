@@ -4,14 +4,9 @@
 
 import { cargarModuloMapa } from './mapas.js';
 import { cargarModuloBomberos } from './bomberos.js';
-import { 
-    cambiarTipoControl, 
-    verificarDetalleLlave, 
-    verificarEstadoControl,
-    abrirFormularioControl, 
-    cerrarFormularioControl, 
-    guardarControl 
-} from './controles.js';
+import { abrirControlHidrante, guardarControlHidrante, cambiarTipoControl, verificarDetalleLlave } from './controlesHidrantes.js';
+import { abrirControlExtintor, guardarControlExtintor } from './controlesExtintores.js';
+import { verificarEstadoControl, cerrarFormularioControl } from './controlesBase.js';
 
 // Control del menú lateral (hamburguesa)
 window.toggleMenu = function() {
@@ -59,10 +54,30 @@ window.cargarModulo = async function(moduloKey) {
     }
 };
 
-// Exponer funciones de controles al objeto global window para el HTML
+// Enrutador global para abrir el formulario según la tabla
+window.abrirFormularioControl = function(tabla, dbId, idElemento) {
+    const tablaLower = tabla.toLowerCase();
+    if (tablaLower === 'hidrantes') {
+        abrirControlHidrante(dbId, idElemento);
+    } else if (tablaLower === 'extintores') {
+        abrirControlExtintor(dbId, idElemento);
+    } else {
+        alert(`Módulo de control para ${tabla} aún no implementado.`);
+    }
+};
+
+// Enrutador global para guardar según la tabla activa
+window.guardarControl = function(event) {
+    const tabla = document.getElementById('input-tabla').value.toLowerCase();
+    if (tabla === 'hidrantes') {
+        guardarControlHidrante(event);
+    } else if (tabla === 'extintores') {
+        guardarControlExtintor(event);
+    }
+};
+
+// Exponer funciones auxiliares al objeto global window
 window.cambiarTipoControl = cambiarTipoControl;
 window.verificarDetalleLlave = verificarDetalleLlave;
 window.verificarEstadoControl = verificarEstadoControl;
-window.abrirFormularioControl = abrirFormularioControl;
 window.cerrarFormularioControl = cerrarFormularioControl;
-window.guardarControl = guardarControl;
