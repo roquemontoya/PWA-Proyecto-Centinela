@@ -20,10 +20,10 @@ let mapaActivo = null;
 export async function cargarModuloMapa(moduloKey, contenedor) {
     const config = MAPEO_MODULOS[moduloKey] || { tabla: moduloKey, bucket: `Fotos${moduloKey}`, nombreLegible: moduloKey };
     
-    // Configuración de pantalla completa para el mapa
+    // Configuración de pantalla completa para el contenedor dinámico
     contenedor.style.width = '100%';
     contenedor.style.maxWidth = '100%'; 
-    contenedor.style.height = 'calc(100vh - 125px)'; 
+    contenedor.style.height = 'calc(100vh - 65px)'.trim(); 
     contenedor.style.margin = '0';
     contenedor.style.padding = '0';
     contenedor.style.display = 'block';
@@ -39,7 +39,7 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
         return;
     }
 
-    // Limpiar contenedor y preparar el div del mapa
+    // Inyectar el div del mapa ocupando el 100% del contenedor
     contenedor.innerHTML = `<div id="mapa-modulo" style="width: 100%; height: 100%;"></div>`;
 
     if (mapaActivo) {
@@ -47,11 +47,13 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
         mapaActivo = null;
     }
 
-    // Coordenadas iniciales (Centro de planta / Córdoba por defecto)
+    // Coordenadas iniciales por defecto (Córdoba)
     let centroLat = -31.4168;
     let centroLon = -64.1834;
 
-    mapaActivo = L.map('mapa-modulo').setView([centroLat, centroLon], 17);
+    mapaActivo = L.map('mapa-modulo', {
+        zoomControl: true
+    }).setView([centroLat, centroLon], 17);
 
     // Capa satelital ESRI World Imagery
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
@@ -61,12 +63,11 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
 
     let bounds = [];
 
-    // Procesar elementos y pines
+    // Procesar elementos y pines (gotas)
     (data || []).forEach(item => {
         let lat = null;
         let lon = null;
 
-        // Intentar extraer coordenadas del campo WKT (ej: POINT (-64.239383 -31.470898))
         if (item.WKT && typeof item.WKT === 'string' && item.WKT.includes('POINT')) {
             try {
                 const coordsStr = item.WKT.replace('POINT (', '').replace(')', '').trim();
@@ -83,7 +84,6 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
         if (lat && lon && !isNaN(lat) && !isNaN(lon)) {
             bounds.push([lat, lon]);
 
-            // Determinar color del marcador según EstadoReferencia
             let colorPin = '#22c55e'; // Verde (Operativo)
             let estadoTexto = item.EstadoReferencia || 'Operativo';
             
@@ -94,18 +94,17 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
                 colorPin = '#ef4444'; // Rojo
             }
 
-            // Crear marcador personalizado con Leaflet DivIcon
+            // Marcador personalizado (gota)
             const iconoPin = L.divIcon({
                 className: 'custom-pin',
-                html: `<div style="background-color: ${colorPin}; width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 6px rgba(0,0,0,0.8);"></div>`,
-                iconSize: [14, 14],
-                iconAnchor: [7, 7]
+                html: `<div style="background-color: ${colorPin}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 8px rgba(0,0,0,0.9);"></div>`,
+                iconSize: [16, 16],
+                iconAnchor: [8, 8]
             });
 
             const marker = L.marker([lat, lon], { icon: iconoPin }).addTo(mapaActivo);
 
             let idElemento = item.NombreEtiqueta || item.Nombre || item.nombre || `Elemento #${item.id}`;
-            
             let pastillaHtml = `<span style="background: ${colorPin}; color: #000; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 11px;">${estadoTexto.toUpperCase()}</span>`;
 
             const popupContent = `
@@ -123,8 +122,13 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
         }
     });
 
-    // Ajustar zoom del mapa si hay marcadores válidos
-    if (bounds.length > 0) {
-        mapaActivo.fitBounds(bounds, { padding: [50, 50], maxZoom: 19 });
-    }
+    // Forzar actualización de tamaño y salto automático (zoom y centrado en los pines)
+    setTimeout(() => {
+        if (mapaActivo) {
+            mapaActivo.invalidateSize();
+            if (bounds.length > 0) {
+                mapaActivo.fitBounds(bounds, { padding: [50, 50], maxZoom: 19 });
+            }
+        }
+    }, 100);
 }
