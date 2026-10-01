@@ -1,5 +1,5 @@
 // ==========================================
-// MÓDULO: Controles de Extintores (Estrictamente CSV)
+// MÓDULO: Controles de Extintores (Estrictamente CSV y Lógica de Reemplazo)
 // ==========================================
 
 import { clienteSupabase } from './supabaseClient.js';
@@ -66,8 +66,29 @@ function renderizarFormularioExtintorHTML(ext) {
 
             <label style="display: block; font-size: 12px; color: #ccc;">Prueba Hidraulica:</label>
             <input type="text" id="input-prueba-hidraulica" value="${ext.PruebaHidraulica || ext['Prueba Hidraulica'] || ''}" placeholder="Ej: 2027" style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 13px;">
+            
+            <!-- Selector de Condición / Lógica de Reemplazo Directo -->
+            <label style="display: block; font-size: 12px; margin-top: 10px; color: #22c55e; font-weight: bold;">Condición del Equipo (¿Requiere Reemplazo?):</label>
+            <select id="input-condicion-extintor" onchange="toggleReemplazoExtintor()" style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #22c55e; color: #fff; border-radius: 4px; font-size: 13px;">
+                <option value="Cumple">Cumple (Operativo)</option>
+                <option value="Reemplazar">No Cumple (Reemplazo Directo)</option>
+            </select>
+
+            <div id="seccion-reemplazo" style="display: none; background: #2a1515; padding: 10px; border-radius: 4px; border: 1px dashed #ef4444; margin-top: 8px;">
+                <label style="display: block; font-size: 12px; color: #ff8888; font-weight: bold;">Nueva Etiqueta / ID del Equipo de Reemplazo:</label>
+                <input type="text" id="input-nuevo-id-etiqueta" placeholder="Ej: EXT-88 (Nuevo equipo instalado)" style="width: 100%; padding: 6px; background: #1e1e1e; border: 1px solid #ef4444; color: #fff; border-radius: 4px; font-size: 12px;">
+            </div>
         </fieldset>
     `;
+
+    // Función auxiliar global para mostrar u ocultar el campo de reemplazo en el DOM
+    window.toggleReemplazoExtintor = function() {
+        const condicion = document.getElementById('input-condicion-extintor').value;
+        const seccionReemplazo = document.getElementById('seccion-reemplazo');
+        if (seccionReemplazo) {
+            seccionReemplazo.style.display = (condicion === 'Reemplazar') ? 'block' : 'none';
+        }
+    };
 }
 
 export async function guardarControlExtintor(event) {
@@ -82,6 +103,8 @@ export async function guardarControlExtintor(event) {
     const realizo = document.getElementById('input-realizo').value; 
     const observacion = document.getElementById('input-observacion').value;
     const fotoInput = document.getElementById('input-foto').files[0];
+    const condicion = document.getElementById('input-condicion-extintor').value;
+    const nuevoIdEtiqueta = document.getElementById('input-nuevo-id-etiqueta') ? document.getElementById('input-nuevo-id-etiqueta').value : '';
 
     if (!realizo) {
         alert('Por favor selecciona un inspector haciendo clic en su foto.');
@@ -103,6 +126,16 @@ export async function guardarControlExtintor(event) {
         const vencimientoVal = document.getElementById('input-vencimiento').value;
         const pruebaHidraulicaVal = document.getElementById('input-prueba-hidraulica').value;
 
+        // Armar observación según si hubo reemplazo o no
+        let observacionFinal = observacion || '';
+        let estadoRef = 'Operativo';
+
+        if (condicion === 'Reemplazar') {
+            estadoRef = 'Anómalo';
+            observacionFinal = `[REEMPLAZADO] Equipo dado de baja e instalado nuevo reemplazo (${nuevoIdEtiqueta || 'Sin ID'}). ${observacionFinal}`.trim();
+        }
+
+        // 1. Insertar registro en la tabla hija Controles_E
         const registroNuevo = {
             "id_extintor": Number(dbId),
             "NombreEtiqueta": nombreEtiquetaVal || null,
@@ -114,7 +147,7 @@ export async function guardarControlExtintor(event) {
             "TipoExtintor": tipoExtintorVal || null,
             "Vencimiento": vencimientoVal || null,
             "PruebaHidraulica": pruebaHidraulicaVal || null,
-            "Observacion": observacion || null,
+            "Observacion": observacionFinal,
             "Foto": fotoUrl,
             "FechaFoto": fechaHoy
         };
@@ -125,18 +158,21 @@ export async function guardarControlExtintor(event) {
 
         if (insertError) throw new Error(insertError.message);
 
+        // 2. Actualizar la tabla padre Extintores (Aplicando lógica de reemplazo si aplica)
+        const datosActualizacionPadre = {
+            NombreEtiqueta: (condicion === 'Reemplazar' && nuevoIdEtiqueta) ? nuevoIdEtiqueta : nombreEtiquetaVal,
+            PuntoGPS: puntoGpsVal,
+            Sector: sectorVal,
+            Ronda: rondaVal,
+            TipoExtintor: tipoExtintorVal,
+            Vencimiento: vencimientoVal,
+            PruebaHidraulica: pruebaHidraulicaVal,
+            EstadoReferencia: estadoRef
+        };
+
         const { error: updateError } = await clienteSupabase
             .from('Extintores')
-            .update({ 
-                NombreEtiqueta: nombreEtiquetaVal,
-                PuntoGPS: puntoGpsVal,
-                Sector: sectorVal,
-                Ronda: rondaVal,
-                TipoExtintor: tipoExtintorVal,
-                Vencimiento: vencimientoVal,
-                PruebaHidraulica: pruebaHidraulicaVal,
-                EstadoReferencia: 'Operativo'
-            }) 
+            .update(datosActualizacionPadre) 
             .eq('id', dbId);
 
         if (updateError) console.error("Error al actualizar la tabla padre Extintores:", updateError);
