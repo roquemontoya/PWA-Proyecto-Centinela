@@ -75,7 +75,19 @@ function renderizarFormularioExtintorHTML(ext) {
     // Calculamos qué estado debería tener preseleccionado
     const estadoSugerido = preCalcularEstadoExtintor(ext.Vencimiento, ext.EstadoReferencia);
 
-    // Inyectamos el selector de estado AFUERA del fieldset para que quede visualmente arriba
+    // ==========================================
+    // LÓGICA DE COMBINACIÓN: Etiquetas + Referencia + Sector
+    // ==========================================
+    const parteEtiqueta = ext.Etiquetas || ext.etiquetas || ext.NombreEtiqueta || ext.NombreDeEtiqueta || '';
+    const parteReferencia = ext.Referencia || ext.referencia || '';
+    const parteSector = ext.Sector || ext.sector || '';
+    
+    // Unimos los valores ignorando los vacíos, separados por un guion medio
+    const nombreCombinado = [parteEtiqueta, parteReferencia, parteSector]
+        .filter(val => val && String(val).trim() !== '')
+        .join(' - ');
+
+    // Inyectamos el formulario
     contenedorComponentes.innerHTML = `
         <!-- ESTADO DEL EXTINTOR (Fuera de la caja, arriba) -->
         <label style="display: block; font-size: 14px; margin-bottom: 5px; color: #22c55e; font-weight: bold;">Estado del Extintor:</label>
@@ -97,7 +109,7 @@ function renderizarFormularioExtintorHTML(ext) {
             <legend style="font-size: 13px; color: #38bdf8; padding: 0 5px; font-weight: bold;">📋 Datos de Control (Extintores)</legend>
             
             <label style="display: block; font-size: 12px; margin-top: 6px; color: #ccc;">Nombre de etiqueta:</label>
-            <input type="text" id="input-nombre-etiqueta" value="${ext.NombreEtiqueta || ext.NombreDeEtiqueta || ''}" style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 13px;">
+            <input type="text" id="input-nombre-etiqueta" value="${nombreCombinado}" style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 13px;">
 
             <label style="display: block; font-size: 12px; color: #ccc;">Punto GPS:</label>
             <input type="text" id="input-punto-gps" value="${ext.PuntoGPS || ''}" style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 13px;">
