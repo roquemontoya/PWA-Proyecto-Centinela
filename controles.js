@@ -136,8 +136,7 @@ export async function guardarControl(event) {
     btnSubmit.disabled = true;
     
     // Captura de datos básicos
-    const dbId = document.getElementById('input-id-db').value;
-    const idch = document.getElementById('input-idch').value;
+    const dbId = document.getElementById('input-id-db').value; // Este es el ID del Hidrante (Padre)
     const tipoControl = document.getElementById('input-tipocontrol').value;
     const realizo = document.getElementById('input-realizo').value;
     const estado = document.getElementById('input-estado').value;
@@ -159,9 +158,8 @@ export async function guardarControl(event) {
 
     let fotoUrl = null;
 
-    // 1. SUBIR FOTO AL BUCKET CORRECTO (Minúsculas y con guion)
+    // 1. SUBIR FOTO AL BUCKET
     if (fotoInput) {
-        // Genera un nombre de archivo único limpiando espacios
         const nombreArchivo = `${Date.now()}_${fotoInput.name.replace(/\s+/g, '_')}`;
         
         const { data: uploadData, error: uploadError } = await clienteSupabase.storage
@@ -182,15 +180,28 @@ export async function guardarControl(event) {
         fotoUrl = urlData.publicUrl;
     }
 
-    // Calcular el mes actual en texto para la columna CONTROLMENSUAL
-    const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-    const mesActual = meses[new Date().getMonth()];
-    const fechaHoy = new Date().toISOString().split('T')[0];
+    // ========================================================
+    // CREACIÓN DEL IDCH (LLAVE ÚNICA) SOLICITADO
+    // ========================================================
+    const ahora = new Date();
+    const dia = String(ahora.getDate()).padStart(2, '0');
+    const mes = String(ahora.getMonth() + 1).padStart(2, '0');
+    const anio = ahora.getFullYear();
+    const horas = String(ahora.getHours()).padStart(2, '0');
+    const minutos = String(ahora.getMinutes()).padStart(2, '0');
 
-    // 2. MAPEO EXACTO HACIA LA TABLA "Controles_H"
+    // Genera el string combinando el ID del hidrante + DD-MM-AAAA:hh:mm
+    const idUnicoGenerado = `${dbId}_${dia}-${mes}-${anio}:${horas}:${minutos}`;
+    // ========================================================
+
+    const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const mesActual = meses[ahora.getMonth()];
+    const fechaHoy = ahora.toISOString().split('T')[0];
+
+    // 2. MAPEO A LA TABLA "Controles_H"
     const registroNuevo = {
-        "ID": dbId,
-        "IDCH": idch,
+        "ID": dbId,                        // Relación con tabla padre (Hidrantes)
+        "IDCH": idUnicoGenerado,           // Llave primaria y única de la tabla hija
         "TipoControl": tipoControl,
         "Realizo": realizo,
         "Controlrealizado": realizo,
@@ -211,7 +222,7 @@ export async function guardarControl(event) {
         "FechaFoto": fechaHoy
     };
 
-    // Si es un control Anual, añadimos los campos específicos a la inserción
+    // Agregar campos de control anual si corresponde
     if (tipoControl === 'Anual' || tipoControl === 'A Solicitud') {
         registroNuevo["PRUEBAANUAL"] = document.getElementById('input-fechapruebaanual').value || null;
         registroNuevo["PruebaAprobada"] = document.getElementById('input-pruebaaprobada').value || null;
@@ -229,12 +240,12 @@ export async function guardarControl(event) {
         return;
     }
 
-    // Guardar el inspector para la próxima vez
+    // Guardar el inspector en caché para la próxima vez
     localStorage.setItem('centinela_inspector', realizo);
 
     alert('Control guardado exitosamente.');
     
-    // Restaurar botón y cerrar
+    // Restaurar el botón y limpiar formulario
     btnSubmit.innerText = textoOriginal;
     btnSubmit.disabled = false;
     cerrarFormularioControl();
