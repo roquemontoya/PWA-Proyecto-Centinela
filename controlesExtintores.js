@@ -14,7 +14,7 @@ export async function abrirControlExtintor(dbId, idElemento) {
     document.getElementById('input-tabla').value = 'Extintores';
     if (titulo) titulo.innerText = `Control Extintor: ${idElemento}`;
 
-    // Consultar datos actuales del extintor (Padre) para precargar los campos exactos
+    // Consultar datos actuales del extintor (Padre)
     const { data: extData } = await clienteSupabase
         .from('Extintores')
         .select('*')
@@ -24,12 +24,12 @@ export async function abrirControlExtintor(dbId, idElemento) {
     renderizarFormularioExtintorHTML(extData || {});
     await cargarBomberosEnModal();
     
-    // Ocultar selectores que no corresponden a este esquema limpio
-    const selectEstado = document.getElementById('input-estado');
-    if (selectEstado) selectEstado.value = 'Operativo'; // Por defecto Operativo para el mapa
-
+    // Ocultar bloques innecesarios globales del modal
     const bloqueAnomalia = document.getElementById('bloque-anomalia');
     if (bloqueAnomalia) bloqueAnomalia.style.display = 'none';
+
+    const bloqueAnual = document.getElementById('bloque-anual');
+    if (bloqueAnual) bloqueAnual.style.display = 'none';
 
     if (modal) modal.style.display = 'flex';
 }
@@ -38,6 +38,7 @@ function renderizarFormularioExtintorHTML(ext) {
     const contenedorComponentes = document.getElementById('contenedor-componentes-dinamicos');
     if (!contenedorComponentes) return;
 
+    // Limpiamos totalmente el contenedor antes de inyectar para evitar basura visual
     contenedorComponentes.innerHTML = `
         <fieldset style="border: 1px solid #38bdf8; border-radius: 5px; padding: 12px; margin-bottom: 12px; background: #182830;">
             <legend style="font-size: 13px; color: #38bdf8; padding: 0 5px; font-weight: bold;">📋 Datos de Control (Extintores)</legend>
@@ -78,7 +79,7 @@ export async function guardarControlExtintor(event) {
     btnSubmit.disabled = true;
     
     const dbId = document.getElementById('input-id-db').value; 
-    const realizo = document.getElementById('input-realizo').value; // Inspector seleccionado en la tarjeta de fotos
+    const realizo = document.getElementById('input-realizo').value; 
     const observacion = document.getElementById('input-observacion').value;
     const fotoInput = document.getElementById('input-foto').files[0];
 
@@ -93,7 +94,6 @@ export async function guardarControlExtintor(event) {
         const fotoUrl = await subirFotoStorage(fotoInput);
         const fechaHoy = new Date().toISOString().split('T')[0];
 
-        // Obtener valores de los campos exactos del CSV
         const nombreEtiquetaVal = document.getElementById('input-nombre-etiqueta').value;
         const puntoGpsVal = document.getElementById('input-punto-gps').value;
         const sectorVal = document.getElementById('input-sector').value;
@@ -103,7 +103,6 @@ export async function guardarControlExtintor(event) {
         const vencimientoVal = document.getElementById('input-vencimiento').value;
         const pruebaHidraulicaVal = document.getElementById('input-prueba-hidraulica').value;
 
-        // Registro exacto para la tabla hija Controles_E
         const registroNuevo = {
             "id_extintor": Number(dbId),
             "NombreEtiqueta": nombreEtiquetaVal || null,
@@ -126,7 +125,6 @@ export async function guardarControlExtintor(event) {
 
         if (insertError) throw new Error(insertError.message);
 
-        // Actualizar también los datos en la tabla padre Extintores
         const { error: updateError } = await clienteSupabase
             .from('Extintores')
             .update({ 
