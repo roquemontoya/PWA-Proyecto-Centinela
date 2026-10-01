@@ -6,10 +6,10 @@ import { clienteSupabase } from './supabaseClient.js';
 import { verificarEstadoControl, cargarBomberosEnModal, cerrarFormularioControl, subirFotoStorage } from './controlesBase.js';
 
 export function cambiarTipoControl() {
-    const tipo = document.getElementById('input-tipocontrol').value;
+    const tipo = document.getElementById('input-tipocontrol') ? document.getElementById('input-tipocontrol').value : null;
     const bloqueAnual = document.getElementById('bloque-anual');
     
-    if (bloqueAnual) {
+    if (bloqueAnual && tipo) {
         if (tipo === 'Anual' || tipo === 'A Solicitud') {
             bloqueAnual.style.display = 'block';
             document.getElementById('input-fechapruebaanual').setAttribute('required', 'true');
@@ -47,14 +47,24 @@ export async function abrirControlHidrante(dbId, idElemento) {
     document.getElementById('input-tabla').value = 'hidrantes';
     if (titulo) titulo.innerText = `Control Hidrante: ${idElemento}`;
 
+    // 1. Inyectamos SÓLO los campos de Hidrantes (incluyendo los antiguos generales)
     renderizarFormularioHidranteHTML();
+    
+    // 2. Cargamos bomberos SÓLO después de inyectar, para que encuentre las cajas dinámicas de anomalías
     await cargarBomberosEnModal();
     
-    document.getElementById('input-tipocontrol').value = 'Mensual';
-    cambiarTipoControl();
+    // 3. Inicializamos los valores por defecto
+    const inputTipo = document.getElementById('input-tipocontrol');
+    if (inputTipo) {
+        inputTipo.value = 'Mensual';
+        cambiarTipoControl();
+    }
 
-    document.getElementById('input-estado').value = 'Operativo';
-    verificarEstadoControl();
+    const inputEstado = document.getElementById('input-estado');
+    if (inputEstado) {
+        inputEstado.value = 'Operativo';
+        verificarEstadoControl();
+    }
 
     ['alimentacion', 'teatroderecho', 'teatroizquierdo'].forEach(tipo => {
         const div = document.getElementById(`div-detalle-${tipo}`);
@@ -74,6 +84,70 @@ function renderizarFormularioHidranteHTML() {
     if (!contenedorComponentes) return;
 
     contenedorComponentes.innerHTML = `
+        <!-- BLOQUE TIPO DE CONTROL -->
+        <label style="display: block; margin-bottom: 5px; font-size: 14px; font-weight: bold; color: #22c55e;">Tipo de Control:</label>
+        <select id="input-tipocontrol" onchange="cambiarTipoControl()" required style="width: 100%; padding: 8px; margin-bottom: 12px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 5px;">
+            <option value="Mensual">Mensual</option>
+            <option value="Anual">Anual</option>
+            <option value="A Solicitud">A Solicitud</option>
+        </select>
+
+        <!-- ESTADO GENERAL -->
+        <label style="display: block; margin-bottom: 5px; font-size: 14px;">Estado General:</label>
+        <select id="input-estado" onchange="verificarEstadoControl()" required style="width: 100%; padding: 8px; margin-bottom: 12px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 5px;">
+            <option value="Operativo">Operativo</option>
+            <option value="Observado">Observado</option>
+            <option value="Anomalo">Anómalo</option>
+        </select>
+
+        <!-- BLOQUE ANOMALIA -->
+        <div id="bloque-anomalia" style="display: none; background: #2a1515; padding: 12px; border-radius: 6px; margin-bottom: 12px; border: 1px dashed #ef4444;">
+            <h4 style="margin: 0 0 10px 0; color: #ef4444; font-size: 14px;">🚨 Registro de Anomalía (Fuera de Servicio)</h4>
+            
+            <label style="display: block; margin-bottom: 5px; font-size: 13px; color: #ff8888;">Razón de la salida de servicio (Anomalía):</label>
+            <textarea id="input-anomalia-razon" rows="2" placeholder="Describa el motivo detallado de la anomalía..." style="width: 100%; padding: 6px; margin-bottom: 10px; background: #1e1e1e; border: 1px solid #ef4444; color: #fff; border-radius: 4px; font-size: 12px;"></textarea>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-size: 13px;">Núm. de Anomalía / Evento:</label>
+                    <input type="number" id="input-evento-numero" placeholder="Ej: 202601" style="width: 100%; padding: 6px; background: #1e1e1e; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 12px;">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-size: 13px;">Fecha de Reporte:</label>
+                    <input type="date" id="input-reportado-fecha" style="width: 100%; padding: 6px; background: #1e1e1e; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 12px;">
+                </div>
+            </div>
+
+            <label style="display: block; margin-bottom: 5px; font-size: 13px; color: #ff8888;">Reportado por (Bombero):</label>
+            <input type="hidden" id="input-reportado-por">
+            <div id="grid-seleccion-reportado" style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 5px; scrollbar-width: thin;">
+                <p style="color: #aaa; font-size: 13px;">Cargando personal...</p>
+            </div>
+        </div>
+
+        <!-- BLOQUE ANUAL -->
+        <div id="bloque-anual" style="display: none; background: #252525; padding: 10px; border-radius: 6px; margin-bottom: 12px; border: 1px dashed #444;">
+            <h4 style="margin: 0 0 10px 0; color: #38bdf8; font-size: 14px;">Parámetros de Prueba Anual / Solicitud</h4>
+            
+            <label style="display: block; margin-bottom: 5px; font-size: 13px;">Fecha de Prueba Anual:</label>
+            <input type="date" id="input-fechapruebaanual" style="width: 100%; padding: 6px; margin-bottom: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 5px;">
+
+            <label style="display: block; margin-bottom: 5px; font-size: 13px;">Prueba Aprobada:</label>
+            <select id="input-pruebaaprobada" style="width: 100%; padding: 6px; margin-bottom: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 5px;">
+                <option value="Si">Sí</option>
+                <option value="No">No</option>
+            </select>
+
+            <label style="display: block; margin-bottom: 5px; font-size: 13px;">Movimiento de Agua (MovAgua):</label>
+            <select id="input-movagua" style="width: 100%; padding: 6px; margin-bottom: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 5px;">
+                <option value="Si">Sí</option>
+                <option value="No">No</option>
+            </select>
+
+            <label style="display: block; margin-bottom: 5px; font-size: 13px;">Próxima Fecha Mensual (Planificación):</label>
+            <input type="date" id="input-fechapruebamensual" style="width: 100%; padding: 6px; margin-bottom: 5px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 5px;">
+        </div>
+
         <fieldset style="border: 1px solid #444; border-radius: 5px; padding: 10px; margin-bottom: 12px;">
             <legend style="font-size: 13px; color: #aaa; padding: 0 5px;">Evaluación de Componentes (Hidrante)</legend>
             
@@ -149,9 +223,11 @@ export async function guardarControlHidrante(event) {
     
     const dbId = document.getElementById('input-id-db').value; 
     const idch = document.getElementById('input-idch').value;
-    const tipoControl = document.getElementById('input-tipocontrol').value;
+    
+    // Obtener los valores dinámicos
+    const tipoControl = document.getElementById('input-tipocontrol') ? document.getElementById('input-tipocontrol').value : 'Mensual';
+    const estado = document.getElementById('input-estado') ? document.getElementById('input-estado').value : 'Operativo'; 
     const realizo = document.getElementById('input-realizo').value;
-    const estado = document.getElementById('input-estado').value; 
     const observacion = document.getElementById('input-observacion').value;
     const fotoInput = document.getElementById('input-foto').files[0];
 

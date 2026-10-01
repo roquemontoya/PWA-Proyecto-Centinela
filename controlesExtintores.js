@@ -5,6 +5,47 @@
 import { clienteSupabase } from './supabaseClient.js';
 import { cargarBomberosEnModal, cerrarFormularioControl, subirFotoStorage } from './controlesBase.js';
 
+// Motor interno para pre-seleccionar el estado automáticamente al abrir el modal
+function preCalcularEstadoExtintor(fechaStr, estadoReferencia) {
+    if (estadoReferencia && String(estadoReferencia).toLowerCase().includes('anomalo')) return 'Vencido';
+    if (!fechaStr) return 'Vigente';
+    
+    const f = fechaStr.toString().toLowerCase().trim();
+    const meses = { 'ene': 0, 'feb': 1, 'mar': 2, 'abr': 3, 'may': 4, 'jun': 5, 'jul': 6, 'ago': 7, 'sep': 8, 'oct': 9, 'nov': 10, 'dic': 11 };
+    
+    let match = f.match(/^([a-z]{3})[\s\-\/]+(\d{2,4})$/);
+    let fechaVenc = null;
+    if (match) {
+        let m = meses[match[1]];
+        let y = parseInt(match[2], 10);
+        if (y < 100) y += 2000;
+        if (m !== undefined) fechaVenc = new Date(y, m + 1, 0);
+    } else {
+        match = f.match(/^(\d{1,2})[\s\-\/]+(\d{2,4})$/);
+        if (match) {
+            let m = parseInt(match[1], 10) - 1;
+            let y = parseInt(match[2], 10);
+            if (y < 100) y += 2000;
+            fechaVenc = new Date(y, m + 1, 0);
+        } else {
+            let parsed = new Date(fechaStr);
+            if (!isNaN(parsed.getTime())) fechaVenc = parsed;
+        }
+    }
+    
+    if (fechaVenc) {
+        let hoy = new Date();
+        hoy.setHours(0,0,0,0);
+        fechaVenc.setHours(0,0,0,0);
+        let diffDias = (fechaVenc.getTime() - hoy.getTime()) / (1000 * 3600 * 24);
+        
+        if (diffDias < 0) return 'Vencido';
+        if (diffDias <= 30) return 'Por Vencer';
+        return 'Vigente';
+    }
+    return 'Vigente';
+}
+
 export async function abrirControlExtintor(dbId, idElemento) {
     const modal = document.getElementById('modal-control');
     const titulo = document.getElementById('modal-titulo-elemento');
@@ -23,13 +64,6 @@ export async function abrirControlExtintor(dbId, idElemento) {
 
     renderizarFormularioExtintorHTML(extData || {});
     await cargarBomberosEnModal();
-    
-    // Ocultar bloques innecesarios globales del modal
-    const bloqueAnomalia = document.getElementById('bloque-anomalia');
-    if (bloqueAnomalia) bloqueAnomalia.style.display = 'none';
-
-    const bloqueAnual = document.getElementById('bloque-anual');
-    if (bloqueAnual) bloqueAnual.style.display = 'none';
 
     if (modal) modal.style.display = 'flex';
 }
@@ -38,8 +72,27 @@ function renderizarFormularioExtintorHTML(ext) {
     const contenedorComponentes = document.getElementById('contenedor-componentes-dinamicos');
     if (!contenedorComponentes) return;
 
-    // Limpiamos totalmente el contenedor antes de inyectar para evitar basura visual
+    // Calculamos qué estado debería tener preseleccionado
+    const estadoSugerido = preCalcularEstadoExtintor(ext.Vencimiento, ext.EstadoReferencia);
+
+    // Inyectamos el selector de estado AFUERA del fieldset para que quede visualmente arriba
     contenedorComponentes.innerHTML = `
+        <!-- ESTADO DEL EXTINTOR (Fuera de la caja, arriba) -->
+        <label style="display: block; font-size: 14px; margin-bottom: 5px; color: #22c55e; font-weight: bold;">Estado del Extintor:</label>
+        <select id="input-condicion-extintor" onchange="toggleReemplazoExtintor()" style="width: 100%; padding: 8px; margin-bottom: 12px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 5px; font-size: 13px;">
+            <option value="Vigente" ${estadoSugerido === 'Vigente' ? 'selected' : ''}>Vigente</option>
+            <option value="Por Vencer" ${estadoSugerido === 'Por Vencer' ? 'selected' : ''}>Por Vencer</option>
+            <option value="Vencido" ${estadoSugerido === 'Vencido' ? 'selected' : ''}>Vencido (Reemplazo)</option>
+        </select>
+
+        <!-- Bloque de reemplazo (Se muestra si está vencido) -->
+        <div id="seccion-reemplazo" style="display: ${estadoSugerido === 'Vencido' ? 'block' : 'none'}; background: #2a1515; padding: 12px; border-radius: 6px; border: 1px dashed #ef4444; margin-bottom: 12px;">
+            <h4 style="margin: 0 0 10px 0; color: #ef4444; font-size: 14px;">🚨 Reemplazo de Equipo Requerido</h4>
+            <label style="display: block; font-size: 12px; color: #ff8888; font-weight: bold;">Nueva Etiqueta / ID del Equipo Instalado:</label>
+            <input type="text" id="input-nuevo-id-etiqueta" placeholder="Ej: EXT-88 (Obligatorio para trazabilidad)" style="width: 100%; padding: 6px; background: #1e1e1e; border: 1px solid #ef4444; color: #fff; border-radius: 4px; font-size: 12px;">
+        </div>
+
+        <!-- CAJA DE DATOS DEL EXTINTOR -->
         <fieldset style="border: 1px solid #38bdf8; border-radius: 5px; padding: 12px; margin-bottom: 12px; background: #182830;">
             <legend style="font-size: 13px; color: #38bdf8; padding: 0 5px; font-weight: bold;">📋 Datos de Control (Extintores)</legend>
             
@@ -66,18 +119,6 @@ function renderizarFormularioExtintorHTML(ext) {
 
             <label style="display: block; font-size: 12px; color: #ccc;">Prueba Hidraulica:</label>
             <input type="text" id="input-prueba-hidraulica" value="${ext.PruebaHidraulica || ext['Prueba Hidraulica'] || ''}" placeholder="Ej: 2027" style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 13px;">
-            
-            <!-- Selector de Condición / Lógica de Reemplazo Directo -->
-            <label style="display: block; font-size: 12px; margin-top: 10px; color: #22c55e; font-weight: bold;">Condición del Equipo (¿Requiere Reemplazo?):</label>
-            <select id="input-condicion-extintor" onchange="toggleReemplazoExtintor()" style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #22c55e; color: #fff; border-radius: 4px; font-size: 13px;">
-                <option value="Cumple">Cumple (Operativo)</option>
-                <option value="Reemplazar">No Cumple (Reemplazo Directo)</option>
-            </select>
-
-            <div id="seccion-reemplazo" style="display: none; background: #2a1515; padding: 10px; border-radius: 4px; border: 1px dashed #ef4444; margin-top: 8px;">
-                <label style="display: block; font-size: 12px; color: #ff8888; font-weight: bold;">Nueva Etiqueta / ID del Equipo de Reemplazo:</label>
-                <input type="text" id="input-nuevo-id-etiqueta" placeholder="Ej: EXT-88 (Nuevo equipo instalado)" style="width: 100%; padding: 6px; background: #1e1e1e; border: 1px solid #ef4444; color: #fff; border-radius: 4px; font-size: 12px;">
-            </div>
         </fieldset>
     `;
 
@@ -86,7 +127,7 @@ function renderizarFormularioExtintorHTML(ext) {
         const condicion = document.getElementById('input-condicion-extintor').value;
         const seccionReemplazo = document.getElementById('seccion-reemplazo');
         if (seccionReemplazo) {
-            seccionReemplazo.style.display = (condicion === 'Reemplazar') ? 'block' : 'none';
+            seccionReemplazo.style.display = (condicion === 'Vencido') ? 'block' : 'none';
         }
     };
 }
@@ -126,13 +167,15 @@ export async function guardarControlExtintor(event) {
         const vencimientoVal = document.getElementById('input-vencimiento').value;
         const pruebaHidraulicaVal = document.getElementById('input-prueba-hidraulica').value;
 
-        // Armar observación según si hubo reemplazo o no
+        // Definir estado para el mapa y armar observación si hubo reemplazo
         let observacionFinal = observacion || '';
-        let estadoRef = 'Operativo';
+        let estadoRef = 'Operativo'; // Mapea a Verde por defecto
 
-        if (condicion === 'Reemplazar') {
-            estadoRef = 'Anómalo';
-            observacionFinal = `[REEMPLAZADO] Equipo dado de baja e instalado nuevo reemplazo (${nuevoIdEtiqueta || 'Sin ID'}). ${observacionFinal}`.trim();
+        if (condicion === 'Vencido') {
+            estadoRef = 'Anómalo'; // Mapea a Rojo en el mapa
+            observacionFinal = `[REEMPLAZADO] Equipo dado de baja por vencimiento u otra anomalía. Nuevo equipo instalado: (${nuevoIdEtiqueta || 'Sin ID'}). ${observacionFinal}`.trim();
+        } else if (condicion === 'Por Vencer') {
+            estadoRef = 'Observado'; // Mapea a Amarillo en el mapa
         }
 
         // 1. Insertar registro en la tabla hija Controles_E
@@ -158,9 +201,9 @@ export async function guardarControlExtintor(event) {
 
         if (insertError) throw new Error(insertError.message);
 
-        // 2. Actualizar la tabla padre Extintores (Aplicando lógica de reemplazo si aplica)
+        // 2. Actualizar la tabla padre Extintores (Actualiza fecha, ID y estado de color para el mapa)
         const datosActualizacionPadre = {
-            NombreEtiqueta: (condicion === 'Reemplazar' && nuevoIdEtiqueta) ? nuevoIdEtiqueta : nombreEtiquetaVal,
+            NombreEtiqueta: (condicion === 'Vencido' && nuevoIdEtiqueta) ? nuevoIdEtiqueta : nombreEtiquetaVal,
             PuntoGPS: puntoGpsVal,
             Sector: sectorVal,
             Ronda: rondaVal,
