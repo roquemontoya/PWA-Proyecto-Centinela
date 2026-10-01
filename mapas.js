@@ -108,7 +108,7 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
 
     let bounds = [];
 
-    // Procesar elementos y pines usando la función todoterreno
+    // Procesar elementos y pines
     (data || []).forEach(item => {
         const coords = extraerCoordenadas(item);
         
@@ -117,16 +117,85 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
             const lon = coords[1];
             bounds.push([lat, lon]);
 
-            let colorPin = '#22c55e'; // Verde
+            let colorPin = '#22c55e'; // Verde por defecto
             let estadoTexto = item.EstadoReferencia || item.Estado || 'Operativo';
             
-            const estLower = String(estadoTexto).toLowerCase();
-            if (estLower.includes('observado')) {
-                colorPin = '#eab308'; // Amarillo
-            } else if (estLower.includes('anomalo') || estLower.includes('anómalo') || estLower.includes('no operativo')) {
-                colorPin = '#ef4444'; // Rojo
+            // ==========================================
+            // LÓGICA DE ESTADOS Y COLORES
+            // ==========================================
+            if (config.tabla.toLowerCase() === 'extintores') {
+                // Motor de lectura de fechas (entiende "ene-27", "10/2026", "2026-10-15")
+                const parsearFechaVenc = (fStr) => {
+                    if (!fStr) return null;
+                    const f = fStr.toString().toLowerCase().trim();
+                    const meses = { 'ene': 0, 'feb': 1, 'mar': 2, 'abr': 3, 'may': 4, 'jun': 5, 'jul': 6, 'ago': 7, 'sep': 8, 'oct': 9, 'nov': 10, 'dic': 11 };
+                    
+                    // Formato: "ene-27" o "ene 27" o "ene/2027"
+                    let match = f.match(/^([a-z]{3})[\s\-\/]+(\d{2,4})$/);
+                    if (match) {
+                        let m = meses[match[1]];
+                        let y = parseInt(match[2], 10);
+                        if (y < 100) y += 2000;
+                        if (m !== undefined) return new Date(y, m + 1, 0); // Calcula el último día de ese mes
+                    }
+                    // Formato: "10/2026" o "10-26"
+                    match = f.match(/^(\d{1,2})[\s\-\/]+(\d{2,4})$/);
+                    if (match) {
+                        let m = parseInt(match[1], 10) - 1;
+                        let y = parseInt(match[2], 10);
+                        if (y < 100) y += 2000;
+                        return new Date(y, m + 1, 0);
+                    }
+                    // Formato estándar ISO
+                    let parsed = new Date(fStr);
+                    if (!isNaN(parsed.getTime())) return parsed;
+                    return null;
+                };
+
+                const estRefLower = String(estadoTexto).toLowerCase();
+                // Si el extintor fue marcado como Anómalo o reemplazado manualmente, el rojo domina.
+                if (estRefLower.includes('anomalo') || estRefLower.includes('anómalo')) {
+                    colorPin = '#ef4444'; // Rojo
+                    estadoTexto = 'Anómalo / Baja';
+                } else {
+                    let fechaVenc = parsearFechaVenc(item.Vencimiento);
+                    if (fechaVenc) {
+                        let hoy = new Date();
+                        hoy.setHours(0,0,0,0);
+                        fechaVenc.setHours(0,0,0,0);
+                        
+                        // Calculamos la diferencia en días
+                        let diffDias = (fechaVenc.getTime() - hoy.getTime()) / (1000 * 3600 * 24);
+                        
+                        if (diffDias < 0) {
+                            colorPin = '#ef4444'; // Rojo
+                            estadoTexto = 'Vencido';
+                        } else if (diffDias <= 30) {
+                            colorPin = '#eab308'; // Amarillo
+                            estadoTexto = 'Próximo a Vencer';
+                        } else {
+                            colorPin = '#22c55e'; // Verde
+                            estadoTexto = 'Vigente';
+                        }
+                    } else {
+                        // Si el campo está vacío o no se entiende, se asume Vigente
+                        colorPin = '#22c55e'; // Verde
+                        estadoTexto = 'Vigente (Sin fecha)';
+                    }
+                }
+            } else {
+                // LÓGICA ORIGINAL (Hidrantes y otros módulos)
+                const estLower = String(estadoTexto).toLowerCase();
+                if (estLower.includes('observado')) {
+                    colorPin = '#eab308'; // Amarillo
+                } else if (estLower.includes('anomalo') || estLower.includes('anómalo') || estLower.includes('no operativo')) {
+                    colorPin = '#ef4444'; // Rojo
+                }
             }
 
+            // ==========================================
+            // CREACIÓN DEL PIN Y POPUP
+            // ==========================================
             const iconoPin = L.divIcon({
                 className: 'custom-pin',
                 html: `<div style="background-color: ${colorPin}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 8px rgba(0,0,0,0.9);"></div>`,
@@ -138,11 +207,18 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
 
             let idElemento = item.NombreEtiqueta || item.Nombre || item.nombre || `Elemento #${item.id}`;
             let pastillaHtml = `<span style="background: ${colorPin}; color: #000; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 11px;">${estadoTexto.toUpperCase()}</span>`;
+            
+            // Si es extintor, mostramos el dato crudo de vencimiento en el cartel
+            let extraInfo = '';
+            if (config.tabla.toLowerCase() === 'extintores' && item.Vencimiento) {
+                extraInfo = `<div style="font-size: 12px; margin-bottom: 6px; color: #aaa;">Vencimiento original: <strong style="color:#fff;">${item.Vencimiento}</strong></div>`;
+            }
 
             const popupContent = `
                 <div style="font-family: Arial, sans-serif; color: #333; min-width: 180px;">
                     <div style="font-weight: bold; font-size: 13px; margin-bottom: 4px; color: #111;">${idElemento}</div>
-                    <div style="font-size: 12px; margin-bottom: 6px; color: #555;">Sector: ${item.Sector || 'N/D'}</div>
+                    <div style="font-size: 12px; margin-bottom: 2px; color: #555;">Sector: ${item.Sector || 'N/D'}</div>
+                    ${extraInfo}
                     <div style="font-size: 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 5px;">
                         Estado: ${pastillaHtml}
                     </div>
@@ -154,7 +230,7 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
         }
     });
 
-    // Forzar redibujo y salto automático de zoom (con 200ms extra de margen de seguridad para Leaflet)
+    // Forzar redibujo y salto automático de zoom
     setTimeout(() => {
         if (mapaActivo) {
             mapaActivo.invalidateSize();
