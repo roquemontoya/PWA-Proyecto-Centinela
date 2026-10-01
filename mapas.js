@@ -5,20 +5,32 @@
 import { clienteSupabase } from './supabaseClient.js';
 import { abrirFormularioControl } from './controles.js';
 
+// Mapeo exacto de tablas y buckets en Supabase
+const MAPEO_MODULOS = {
+    'hidrantes': { tabla: 'hidrantes', bucket: 'FotosHidrantes', nombreLegible: 'Hidrantes' },
+    'extintores': { tabla: 'extintores', bucket: 'FotosExtintores', nombreLegible: 'Extintores' },
+    'ecas': { tabla: 'ecas', bucket: 'FotosEcas', nombreLegible: 'ECAS' },
+    'valvulas': { tabla: 'valvulas', bucket: 'FotosValvulas', nombreLegible: 'Válvulas' },
+    'vecas': { tabla: 'vecas', bucket: 'FotosVecas', nombreLegible: 'VECAS' },
+    'pecas': { tabla: 'pecas', bucket: 'FotosPecas', nombreLegible: 'PECAS' },
+    'ipp': { tabla: 'ipp', bucket: 'FotosIpp', nombreLegible: 'IPP' },
+    'bomberos': { tabla: 'Bomberos', bucket: 'FotosBomberos', nombreLegible: 'Personal / Bomberos' }
+};
+
 let mapaActivo = null;
 
 export async function cargarModuloMapa(moduloKey, contenedor) {
-    const nombreTabla = moduloKey.charAt(0).toUpperCase() + moduloKey.slice(1);
+    const config = MAPEO_MODULOS[moduloKey] || { tabla: moduloKey, bucket: `Fotos${moduloKey}`, nombreLegible: moduloKey };
     
-    contenedor.innerHTML = '<div style="padding: 40px; text-align: center; color: #fff; font-family: Arial;">Cargando mapa y elementos de ' + nombreTabla + '...</div>';
+    contenedor.innerHTML = `<div style="padding: 40px; text-align: center; color: #fff; font-family: Arial;">Cargando mapa y elementos de ${config.nombreLegible}...</div>`;
 
-    // 1. Consultar datos en Supabase
+    // 1. Consultar datos en Supabase usando el nombre exacto de la tabla
     const { data, error } = await clienteSupabase
-        .from(nombreTabla)
+        .from(config.tabla)
         .select('*');
 
     if (error) {
-        contenedor.innerHTML = `<div style="padding: 20px; color: #ef4444; text-align: center;">Error al cargar datos: ${error.message}</div>`;
+        contenedor.innerHTML = `<div style="padding: 20px; color: #ef4444; text-align: center; font-family: Arial;">Error al cargar datos (${config.tabla}): ${error.message}</div>`;
         return;
     }
 
@@ -31,7 +43,7 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
         mapaActivo = null;
     }
 
-    // Coordenadas por defecto (Centro de operaciones / Córdoba)
+    // Coordenadas por defecto (Córdoba)
     let centroLat = -31.4201;
     let centroLng = -64.1888;
     let zoomInicial = 15;
@@ -51,7 +63,6 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
     // Inicializar Leaflet
     mapaActivo = L.map('mapa-leaflet').setView([centroLat, centroLng], zoomInicial);
 
-    // Capa base de mapas
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         attribution: '© Centinela 2.0'
@@ -61,13 +72,13 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
         return;
     }
 
-    // 3. Renderizar marcadores con foto y estado
+    // 3. Renderizar marcadores con foto y pastilla de estado
     data.forEach(item => {
         const coords = extraerCoordenadas(item);
         if (!coords) return;
 
         let estado = (item.Estado || 'Operativo').toLowerCase();
-        let colorPin = '#22c55e'; // Verde por defecto (Operativo)
+        let colorPin = '#22c55e'; // Verde (Operativo)
         let textoEstado = 'Operativo';
 
         if (estado.includes('observado')) {
@@ -78,7 +89,6 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
             textoEstado = 'Anómalo';
         }
 
-        // Crear marcador circular con el color correspondiente al estado
         const marker = L.circleMarker(coords, {
             radius: 9,
             fillColor: colorPin,
@@ -88,11 +98,10 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
             fillOpacity: 0.85
         }).addTo(mapaActivo);
 
-        // Procesar URL de la foto del hidrante/elemento
+        // Procesar URL de la foto del elemento
         let fotoUrl = item.Foto || item.FotoHidrante || '';
         if (fotoUrl && !fotoUrl.startsWith('http')) {
-            const bucketName = `Fotos${nombreTabla}`.replace(/\s+/g, '');
-            fotoUrl = `https://zgzhudcdxoentmfgdncf.supabase.co/storage/v1/object/public/${bucketName}/${fotoUrl}`;
+            fotoUrl = `https://zgzhudcdxoentmfgdncf.supabase.co/storage/v1/object/public/${config.bucket}/${fotoUrl}`;
         }
 
         const fotoHtml = fotoUrl ? `<img src="${fotoUrl}" alt="Foto Elemento" style="width: 100%; height: 110px; object-fit: cover; border-radius: 6px; margin-bottom: 6px; border: 1px solid #444;" onerror="this.style.display='none'">` : '';
@@ -110,7 +119,7 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
                 <div style="font-size: 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 5px;">
                     Estado: ${pastillaHtml}
                 </div>
-                <button onclick="window.abrirFormularioControl('${nombreTabla}', '${item.id}', '${idElemento.replace(/'/g, "\\'")}')" style="background: #22c55e; color: #000; border: none; padding: 7px 12px; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%; font-size: 12px; text-align: center;">Nuevo Control</button>
+                <button onclick="window.abrirFormularioControl('${config.tabla}', '${item.id}', '${idElemento.replace(/'/g, "\\'")}')" style="background: #22c55e; color: #000; border: none; padding: 7px 12px; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%; font-size: 12px; text-align: center;">Nuevo Control</button>
             </div>
         `;
 
