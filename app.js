@@ -12,7 +12,9 @@ import {
     guardarControl 
 } from './controles.js';
 
-// Control del menú lateral (hamburguesa)
+// Importamos nuestro nuevo módulo de autenticación
+import { verificarSesion, iniciarSesion, cerrarSesion } from './auth.js';
+
 window.toggleMenu = function() {
     const drawer = document.getElementById('side-menu');
     const overlay = document.getElementById('drawer-overlay');
@@ -22,7 +24,6 @@ window.toggleMenu = function() {
     }
 };
 
-// Volver al Home principal
 window.irInicio = function() {
     const mainContent = document.getElementById('main-content');
     const vistaDinamica = document.getElementById('vista-dinamica');
@@ -36,7 +37,6 @@ window.irInicio = function() {
     }
 };
 
-// Orquestador principal de módulos al hacer clic en los botones
 window.cargarModulo = async function(moduloKey) {
     const drawer = document.getElementById('side-menu');
     if (drawer && drawer.classList.contains('open')) {
@@ -58,9 +58,16 @@ window.cargarModulo = async function(moduloKey) {
     }
 };
 
-// Exponer funciones de controles al objeto global window para el HTML
+// Exponer funciones al objeto window para el HTML
 window.cambiarTipoControl = cambiarTipoControl;
 window.verificarDetalleLlave = verificarDetalleLlave;
 window.abrirFormularioControl = abrirFormularioControl;
 window.cerrarFormularioControl = cerrarFormularioControl;
 window.guardarControl = guardarControl;
+
+// Exponer funciones de login
+window.iniciarSesion = iniciarSesion;
+window.cerrarSesion = cerrarSesion;
+
+// EJECUTAR AL CARGAR LA PÁGINA: Verifica si hay sesión activa o muestra el Login
+verificarSesion();
