@@ -1,4 +1,3 @@
-
 // ==========================================
 // MÓDULO: Personal / Bomberos
 // ==========================================
@@ -35,8 +34,8 @@ export async function cargarModuloBomberos(contenedor) {
             const colorEstado = esActivo ? '#22c55e' : '#ef4444';
             const textoEstado = esActivo ? 'ACTIVO' : 'INACTIVO';
 
-            // Manejo de URL de foto por si viene relativa o absoluta del bucket
-            let fotoUrl = b.Foto;[cite: 4]
+            // Manejo de URL de foto limpia (sin errores de sintaxis)
+            let fotoUrl = b.Foto;
             if (fotoUrl && !fotoUrl.startsWith('http')) {
                 fotoUrl = `https://zgzhudcdxoentmfgdncf.supabase.co/storage/v1/object/public/FotosBomberos/${fotoUrl}`;
             }
