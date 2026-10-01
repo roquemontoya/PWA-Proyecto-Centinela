@@ -1,5 +1,5 @@
 // ==========================================
-// MÓDULO: Controles de Extintores
+// MÓDULO: Controles de Extintores (Estrictamente CSV)
 // ==========================================
 
 import { clienteSupabase } from './supabaseClient.js';
@@ -14,7 +14,7 @@ export async function abrirControlExtintor(dbId, idElemento) {
     document.getElementById('input-tabla').value = 'Extintores';
     if (titulo) titulo.innerText = `Control Extintor: ${idElemento}`;
 
-    // Consultar datos actuales del extintor (Padre) para precargar los campos del CSV
+    // Consultar datos actuales del extintor (Padre) para precargar los campos exactos
     const { data: extData } = await clienteSupabase
         .from('Extintores')
         .select('*')
@@ -22,16 +22,12 @@ export async function abrirControlExtintor(dbId, idElemento) {
         .single();
 
     renderizarFormularioExtintorHTML(extData || {});
-
     await cargarBomberosEnModal();
     
-    const tipoControlSelect = document.getElementById('input-tipocontrol');
-    if (tipoControlSelect) tipoControlSelect.value = 'Mensual';
+    // Ocultar selectores que no corresponden a este esquema limpio
+    const selectEstado = document.getElementById('input-estado');
+    if (selectEstado) selectEstado.value = 'Operativo'; // Por defecto Operativo para el mapa
 
-    const estadoSelect = document.getElementById('input-estado');
-    if (estadoSelect) estadoSelect.value = 'Operativo';
-
-    // Ocultar cualquier bloque de anomalía heredado
     const bloqueAnomalia = document.getElementById('bloque-anomalia');
     if (bloqueAnomalia) bloqueAnomalia.style.display = 'none';
 
@@ -43,49 +39,32 @@ function renderizarFormularioExtintorHTML(ext) {
     if (!contenedorComponentes) return;
 
     contenedorComponentes.innerHTML = `
-        <!-- DATOS DEL EXTRACTO CSV / PADRE -->
-        <fieldset style="border: 1px solid #38bdf8; border-radius: 5px; padding: 10px; margin-bottom: 12px; background: #182830;">
-            <legend style="font-size: 13px; color: #38bdf8; padding: 0 5px;">📋 Datos del Extintor (Registro)</legend>
+        <fieldset style="border: 1px solid #38bdf8; border-radius: 5px; padding: 12px; margin-bottom: 12px; background: #182830;">
+            <legend style="font-size: 13px; color: #38bdf8; padding: 0 5px; font-weight: bold;">📋 Datos de Control (Extintores)</legend>
             
-            <label style="display: block; font-size: 12px; margin-top: 5px; color: #ccc;">Tipo de Extintor:</label>
-            <input type="text" id="input-tipo-extintor" value="${ext.TipoExtintor || ''}" style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 13px;">
+            <label style="display: block; font-size: 12px; margin-top: 6px; color: #ccc;">Nombre de etiqueta:</label>
+            <input type="text" id="input-nombre-etiqueta" value="${ext.NombreEtiqueta || ext.NombreDeEtiqueta || ''}" style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 13px;">
 
-            <label style="display: block; font-size: 12px; color: #ccc;">Vencimiento (Carga):</label>
-            <input type="text" id="input-vencimiento-extintor" value="${ext.Vencimiento || ''}" placeholder="Ej: ene-27" style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 13px;">
+            <label style="display: block; font-size: 12px; color: #ccc;">Punto GPS:</label>
+            <input type="text" id="input-punto-gps" value="${ext.PuntoGPS || ''}" style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 13px;">
 
-            <label style="display: block; font-size: 12px; color: #ccc;">Prueba Hidráulica (Año):</label>
-            <input type="text" id="input-ph-extintor" value="${ext.PruebaHidraulica || ''}" placeholder="Ej: 2027" style="width: 100%; padding: 6px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 13px;">
-        </fieldset>
+            <label style="display: block; font-size: 12px; color: #ccc;">Sector:</label>
+            <input type="text" id="input-sector" value="${ext.Sector || ''}" style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 13px;">
 
-        <!-- VERIFICACIÓN TÉCNICA -->
-        <fieldset style="border: 1px solid #444; border-radius: 5px; padding: 10px; margin-bottom: 12px;">
-            <legend style="font-size: 13px; color: #ef4444; padding: 0 5px;">🧯 Verificación en Campo</legend>
-            
-            <label style="display: block; font-size: 13px; margin-top: 5px;">Manómetro / Presión:</label>
-            <select id="input-manometro" required style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
-                <option value="Conforme">Conforme</option>
-                <option value="No conforme">No conforme</option>
-                <option value="No posee">No posee (CO2)</option>
-            </select>
+            <label style="display: block; font-size: 12px; color: #ccc;">Ronda:</label>
+            <input type="text" id="input-ronda" value="${ext.Ronda || ''}" style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 13px;">
 
-            <label style="display: block; font-size: 13px;">Precinto de Seguridad:</label>
-            <select id="input-precinto" required style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
-                <option value="Conforme">Conforme</option>
-                <option value="No conforme">No conforme</option>
-            </select>
+            <label style="display: block; font-size: 12px; color: #ccc;">CONTROL MENSUAL (Mes):</label>
+            <input type="text" id="input-control-mensual" value="${ext.ControlMensual || ext['CONTROL MENSUAL (Mes)'] || ''}" placeholder="Ej: Septiembre" style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 13px;">
 
-            <label style="display: block; font-size: 13px;">Manguera y Boquilla / Tobera:</label>
-            <select id="input-manguera" required style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
-                <option value="Conforme">Conforme</option>
-                <option value="No conforme">No conforme</option>
-                <option value="No posee">No posee</option>
-            </select>
+            <label style="display: block; font-size: 12px; color: #ccc;">Tipo de Extintor:</label>
+            <input type="text" id="input-tipo-extintor" value="${ext.TipoExtintor || ext['Tipo de Extintor'] || ''}" placeholder="Ej: CO2, PQS" style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 13px;">
 
-            <label style="display: block; font-size: 13px;">Soporte / Gabinete / Colgador:</label>
-            <select id="input-soporte" required style="width: 100%; padding: 6px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
-                <option value="Conforme">Conforme</option>
-                <option value="No conforme">No conforme</option>
-            </select>
+            <label style="display: block; font-size: 12px; color: #ccc;">Vencimiento:</label>
+            <input type="text" id="input-vencimiento" value="${ext.Vencimiento || ''}" placeholder="Ej: ene-27" style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 13px;">
+
+            <label style="display: block; font-size: 12px; color: #ccc;">Prueba Hidraulica:</label>
+            <input type="text" id="input-prueba-hidraulica" value="${ext.PruebaHidraulica || ext['Prueba Hidraulica'] || ''}" placeholder="Ej: 2027" style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 13px;">
         </fieldset>
     `;
 }
@@ -95,19 +74,13 @@ export async function guardarControlExtintor(event) {
     
     const btnSubmit = document.querySelector('button[type="submit"]');
     const textoOriginal = btnSubmit.innerText;
-    btnSubmit.innerText = 'Subiendo...';
+    btnSubmit.innerText = 'Guardando...';
     btnSubmit.disabled = true;
     
     const dbId = document.getElementById('input-id-db').value; 
-    const tipoControl = document.getElementById('input-tipocontrol').value;
-    const realizo = document.getElementById('input-realizo').value;
-    const estado = document.getElementById('input-estado').value; 
+    const realizo = document.getElementById('input-realizo').value; // Inspector seleccionado en la tarjeta de fotos
     const observacion = document.getElementById('input-observacion').value;
     const fotoInput = document.getElementById('input-foto').files[0];
-
-    const tipoExtintorVal = document.getElementById('input-tipo-extintor').value;
-    const vencimientoVal = document.getElementById('input-vencimiento-extintor').value;
-    const phVal = document.getElementById('input-ph-extintor').value;
 
     if (!realizo) {
         alert('Por favor selecciona un inspector haciendo clic en su foto.');
@@ -118,35 +91,30 @@ export async function guardarControlExtintor(event) {
 
     try {
         const fotoUrl = await subirFotoStorage(fotoInput);
+        const fechaHoy = new Date().toISOString().split('T')[0];
 
-        const ahora = new Date();
-        const dia = String(ahora.getDate()).padStart(2, '0');
-        const mes = String(ahora.getMonth() + 1).padStart(2, '0');
-        const anio = ahora.getFullYear();
-        const horas = String(ahora.getHours()).padStart(2, '0');
-        const minutos = String(ahora.getMinutes()).padStart(2, '0');
+        // Obtener valores de los campos exactos del CSV
+        const nombreEtiquetaVal = document.getElementById('input-nombre-etiqueta').value;
+        const puntoGpsVal = document.getElementById('input-punto-gps').value;
+        const sectorVal = document.getElementById('input-sector').value;
+        const rondaVal = document.getElementById('input-ronda').value;
+        const controlMensualVal = document.getElementById('input-control-mensual').value;
+        const tipoExtintorVal = document.getElementById('input-tipo-extintor').value;
+        const vencimientoVal = document.getElementById('input-vencimiento').value;
+        const pruebaHidraulicaVal = document.getElementById('input-prueba-hidraulica').value;
 
-        const idUnicoGenerado = `${dbId}_EXT_${dia}-${mes}-${anio}:${horas}:${minutos}`;
-        const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-        const mesActual = meses[ahora.getMonth()];
-        const fechaHoy = ahora.toISOString().split('T')[0];
-
-        // Registro limpio para la tabla hija Controles_E (usando id_extintor)
+        // Registro exacto para la tabla hija Controles_E
         const registroNuevo = {
             "id_extintor": Number(dbId),
-            "IDCE": idUnicoGenerado,
-            "TipoControl": tipoControl,
-            "Realizo": realizo,
-            "Controlrealizado": realizo,
-            "CONTROLMENSUAL": mesActual,
-            "ESTADO": estado.toUpperCase(),
-            "TipoExtintorControl": tipoExtintorVal,
-            "VencimientoControl": vencimientoVal,
-            "PruebaHidraulicaControl": phVal,
-            "Manometro": document.getElementById('input-manometro').value,
-            "Precinto": document.getElementById('input-precinto').value,
-            "MangueraBoquilla": document.getElementById('input-manguera').value,
-            "SoporteGabinete": document.getElementById('input-soporte').value,
+            "NombreEtiqueta": nombreEtiquetaVal || null,
+            "PuntoGPS": puntoGpsVal || null,
+            "Sector": sectorVal || null,
+            "Ronda": rondaVal || null,
+            "CONTROLMENSUAL": controlMensualVal || null,
+            "ControlRealizadoPor": realizo,
+            "TipoExtintor": tipoExtintorVal || null,
+            "Vencimiento": vencimientoVal || null,
+            "PruebaHidraulica": pruebaHidraulicaVal || null,
             "Observacion": observacion || null,
             "Foto": fotoUrl,
             "FechaFoto": fechaHoy
@@ -158,14 +126,18 @@ export async function guardarControlExtintor(event) {
 
         if (insertError) throw new Error(insertError.message);
 
-        // Actualizar los datos estáticos del Padre (Extintores) y su EstadoReferencia
+        // Actualizar también los datos en la tabla padre Extintores
         const { error: updateError } = await clienteSupabase
             .from('Extintores')
             .update({ 
+                NombreEtiqueta: nombreEtiquetaVal,
+                PuntoGPS: puntoGpsVal,
+                Sector: sectorVal,
+                Ronda: rondaVal,
                 TipoExtintor: tipoExtintorVal,
                 Vencimiento: vencimientoVal,
-                PruebaHidraulica: phVal,
-                EstadoReferencia: estado 
+                PruebaHidraulica: pruebaHidraulicaVal,
+                EstadoReferencia: 'Operativo'
             }) 
             .eq('id', dbId);
 
