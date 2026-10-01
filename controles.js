@@ -32,6 +32,29 @@ export function verificarDetalleLlave(tipo) {
     }
 }
 
+export function verificarEstadoControl() {
+    const estado = document.getElementById('input-estado').value;
+    const bloqueAnomalia = document.getElementById('bloque-anomalia');
+    const razonInput = document.getElementById('input-anomalia-razon');
+
+    if (estado === 'Anomalo') {
+        bloqueAnomalia.style.display = 'block';
+        razonInput.setAttribute('required', 'true');
+        
+        const inputFecha = document.getElementById('input-reportado-fecha');
+        if (inputFecha && !inputFecha.value) {
+            inputFecha.value = new Date().toISOString().split('T')[0];
+        }
+    } else {
+        bloqueAnomalia.style.display = 'none';
+        razonInput.removeAttribute('required');
+        razonInput.value = '';
+        document.getElementById('input-evento-numero').value = '';
+        document.getElementById('input-reportado-fecha').value = '';
+        document.getElementById('input-reportado-por').value = '';
+    }
+}
+
 export async function abrirFormularioControl(tabla, dbId, idElemento) {
     const modal = document.getElementById('modal-control');
     const titulo = document.getElementById('modal-titulo-elemento');
@@ -44,11 +67,15 @@ export async function abrirFormularioControl(tabla, dbId, idElemento) {
     // === CARGAR TARJETAS VISUALES DE BOMBEROS ACTIVOS ===
     const contenedorBomberos = document.getElementById('grid-seleccion-bombero');
     const inputRealizo = document.getElementById('input-realizo');
+    const selectReportado = document.getElementById('input-reportado-por');
     
     contenedorBomberos.innerHTML = '<p style="color: #aaa; font-size: 13px;">Cargando personal...</p>';
     inputRealizo.value = ''; // Reset
 
-    // Avatar interno por defecto para evitar bloqueos de red externos
+    if (selectReportado) {
+        selectReportado.innerHTML = '<option value="">-- Seleccionar bombero --</option>';
+    }
+
     const fallbackAvatar = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='150' height='150'><rect width='100%' height='100%' fill='%23333'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-family='sans-serif' font-size='12'>Sin Foto</text></svg>";
 
     const { data, error } = await clienteSupabase
@@ -102,16 +129,25 @@ export async function abrirFormularioControl(tabla, dbId, idElemento) {
             if (b.Bombero.toLowerCase() === inspectorPreseleccionado.toLowerCase()) {
                 tarjeta.click();
             }
+
+            if (selectReportado) {
+                const opt = document.createElement('option');
+                opt.value = b.Bombero;
+                opt.textContent = b.Bombero;
+                selectReportado.appendChild(opt);
+            }
         });
 
         if (!inputRealizo.value && bomberosActivos.length > 0) {
             contenedorBomberos.firstChild.click();
         }
     }
-    // ======================================================
     
     document.getElementById('input-tipocontrol').value = 'Mensual';
     cambiarTipoControl();
+
+    document.getElementById('input-estado').value = 'Operativo';
+    verificarEstadoControl();
 
     ['alimentacion', 'teatroderecho', 'teatroizquierdo'].forEach(tipo => {
         document.getElementById(`div-detalle-${tipo}`).style.display = 'none';
@@ -127,6 +163,7 @@ export function cerrarFormularioControl() {
     if (modal) modal.style.display = 'none';
     const form = document.getElementById('form-nuevo-control');
     if (form) form.reset();
+    verificarEstadoControl();
 }
 
 export async function guardarControl(event) {
@@ -156,6 +193,19 @@ export async function guardarControl(event) {
         btnSubmit.innerText = textoOriginal;
         btnSubmit.disabled = false;
         return;
+    }
+
+    // Capturar datos de anomalía si aplica
+    let razonAnomalia = null;
+    let eventoNumero = null;
+    let reportadoFecha = null;
+    let reportadoPor = null;
+
+    if (estado === 'Anomalo') {
+        razonAnomalia = document.getElementById('input-anomalia-razon').value || null;
+        eventoNumero = document.getElementById('input-evento-numero').value || null;
+        reportadoFecha = document.getElementById('input-reportado-fecha').value || null;
+        reportadoPor = document.getElementById('input-reportado-por').value || null;
     }
 
     let fotoUrl = null;
@@ -213,6 +263,13 @@ export async function guardarControl(event) {
         "Limpieza": limpieza,
         "Engrasado": engrasado,
         "Observacion": observacion || null,
+        
+        // --- CAMPOS DE ANOMALÍA ---
+        "ANOMALIAS": razonAnomalia,
+        "EventoNumero": eventoNumero ? Number(eventoNumero) : null,
+        "ReportadoFecha": reportadoFecha,
+        "ReportadoPor": reportadoPor,
+
         "Foto": fotoUrl,
         "FechaFoto": fechaHoy
     };
@@ -235,7 +292,7 @@ export async function guardarControl(event) {
     }
 
     // ========================================================
-    // ACTUALIZACIÓN EN LA TABLA PADRE (hidrantes)
+    // ACTUALIZACIÓN EN LA TABLA PADRE
     // ========================================================
     const { error: updateError } = await clienteSupabase
         .from(tablaPadre)

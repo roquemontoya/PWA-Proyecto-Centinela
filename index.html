@@ -15,7 +15,6 @@
     <!-- Barra Superior -->
     <header class="app-header">
         <div class="header-left-group">
-            <!-- Botón de Inicio en la cabecera -->
             <button class="btn-header-inicio" onclick="irInicio()" title="Volver al Inicio">🏠</button>
             <div class="header-title">
                 <span class="logo-icon">🛡️</span>
@@ -39,7 +38,7 @@
             <li onclick="cargarModulo('bomberos')">👨‍🚒 Personal / Bomberos</li>
             <li onclick="cargarModulo('ipp')">📦 IPP</li>
             <li onclick="cargarModulo('pecas')">🔧 PECAS</li>
-            <li onclick="cargarModulo('vecas')">⚙️️ VECAS</li>
+            <li onclick="cargarModulo('vecas')">⚙️ VECAS</li>
         </ul>
     </nav>
     <div id="drawer-overlay" class="overlay" onclick="toggleMenu()"></div>
@@ -115,12 +114,37 @@
                     <p style="color: #aaa; font-size: 13px;">Cargando personal...</p>
                 </div>
 
+                <!-- Estado General -->
                 <label style="display: block; margin-bottom: 5px; font-size: 14px;">Estado General:</label>
-                <select id="input-estado" required style="width: 100%; padding: 8px; margin-bottom: 12px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 5px;">
+                <select id="input-estado" onchange="verificarEstadoControl()" required style="width: 100%; padding: 8px; margin-bottom: 12px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 5px;">
                     <option value="Operativo">Operativo</option>
                     <option value="Observado">Observado</option>
                     <option value="Anomalo">Anómalo</option>
                 </select>
+
+                <!-- BLOQUE CONDICIONAL DE ANOMALÍA / FUERA DE SERVICIO -->
+                <div id="bloque-anomalia" style="display: none; background: #2a1515; padding: 12px; border-radius: 6px; margin-bottom: 12px; border: 1px dashed #ef4444;">
+                    <h4 style="margin: 0 0 10px 0; color: #ef4444; font-size: 14px;">🚨 Registro de Anomalía (Fuera de Servicio)</h4>
+                    
+                    <label style="display: block; margin-bottom: 5px; font-size: 13px; color: #ff8888;">Razón de la salida de servicio (Anomalía):</label>
+                    <textarea id="input-anomalia-razon" rows="2" placeholder="Describa el motivo detallado de la anomalía..." style="width: 100%; padding: 6px; margin-bottom: 10px; background: #1e1e1e; border: 1px solid #ef4444; color: #fff; border-radius: 4px; font-size: 12px;"></textarea>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-size: 13px;">Núm. de Anomalía / Evento:</label>
+                            <input type="number" id="input-evento-numero" placeholder="Ej: 202601" style="width: 100%; padding: 6px; background: #1e1e1e; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 12px;">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-size: 13px;">Fecha de Reporte:</label>
+                            <input type="date" id="input-reportado-fecha" style="width: 100%; padding: 6px; background: #1e1e1e; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 12px;">
+                        </div>
+                    </div>
+
+                    <label style="display: block; margin-bottom: 5px; font-size: 13px;">Reportado por (Bombero):</label>
+                    <select id="input-reportado-por" style="width: 100%; padding: 6px; background: #1e1e1e; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 12px;">
+                        <option value="">-- Seleccionar bombero --</option>
+                    </select>
+                </div>
 
                 <!-- CAMPOS ANUALES / SOLICITUD -->
                 <div id="bloque-anual" style="display: none; background: #252525; padding: 10px; border-radius: 6px; margin-bottom: 12px; border: 1px dashed #444;">

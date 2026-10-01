@@ -7,6 +7,7 @@ import { cargarModuloBomberos } from './bomberos.js';
 import { 
     cambiarTipoControl, 
     verificarDetalleLlave, 
+    verificarEstadoControl,
     abrirFormularioControl, 
     cerrarFormularioControl, 
     guardarControl 
@@ -61,6 +62,7 @@ window.cargarModulo = async function(moduloKey) {
 // Exponer funciones de controles al objeto global window para el HTML
 window.cambiarTipoControl = cambiarTipoControl;
 window.verificarDetalleLlave = verificarDetalleLlave;
+window.verificarEstadoControl = verificarEstadoControl;
 window.abrirFormularioControl = abrirFormularioControl;
 window.cerrarFormularioControl = cerrarFormularioControl;
 window.guardarControl = guardarControl;
