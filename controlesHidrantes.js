@@ -107,6 +107,35 @@ function renderizarFormularioHidranteHTML() {
                 <input type="text" id="input-detalle-teatroizquierdo" placeholder="Detalle: ¿Por qué no es conforme el teatro izquierdo?" style="width: 100%; padding: 6px; background: #2a2a2a; border: 1px solid #eab308; color: #fff; border-radius: 4px; font-size: 12px;">
             </div>
         </fieldset>
+
+        <fieldset style="border: 1px solid #444; border-radius: 5px; padding: 10px; margin-bottom: 12px;">
+            <legend style="font-size: 13px; color: #aaa; padding: 0 5px;">Estado Físico y Conservación</legend>
+            
+            <label style="display: block; font-size: 13px; margin-top: 5px;">Gabinete:</label>
+            <select id="input-gabinete" required style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                <option value="Conforme">Conforme</option>
+                <option value="No conforme">No conforme</option>
+                <option value="No posee">No posee</option>
+            </select>
+
+            <label style="display: block; font-size: 13px;">Pintura:</label>
+            <select id="input-pintura" required style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                <option value="Conforme">Conforme</option>
+                <option value="No conforme">No conforme</option>
+            </select>
+
+            <label style="display: block; font-size: 13px;">Limpieza:</label>
+            <select id="input-limpieza" required style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                <option value="Conforme">Conforme</option>
+                <option value="No conforme">No conforme</option>
+            </select>
+
+            <label style="display: block; font-size: 13px;">Engrasado:</label>
+            <select id="input-engrasado" required style="width: 100%; padding: 6px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                <option value="Conforme">Conforme</option>
+                <option value="No conforme">No conforme</option>
+            </select>
+        </fieldset>
     `;
 }
 
