@@ -77,16 +77,22 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
 
         arrayCoordenadas.push(coords);
 
-        let estado = (item.Estado || 'Operativo').toLowerCase();
+        // --- CORRECCIÓN AQUÍ: Usamos EstadoReferencia como prioridad ---
+        let estadoCrudo = item.EstadoReferencia || item.Estado || 'Operativo';
+        let estado = String(estadoCrudo).toLowerCase().trim();
+        
         let colorPin = '#22c55e'; // Verde
-        let textoEstado = 'Operativo';
+        let textoEstado = estadoCrudo;
 
         if (estado.includes('observado')) {
-            colorPin = '#eab308'; // Amarillo
+            colorPin = '#eab308'; // Amarillo / Naranja
             textoEstado = 'Observado';
         } else if (estado.includes('anomalo') || estado.includes('anómalo') || estado.includes('no operativo')) {
             colorPin = '#ef4444'; // Rojo
             textoEstado = 'Anómalo';
+        } else if (estado.includes('operativo') || estado.includes('normal')) {
+            colorPin = '#22c55e';
+            textoEstado = 'Operativo';
         }
 
         const svgPin = `
@@ -113,7 +119,7 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
 
         const fotoHtml = fotoUrl ? `<img src="${fotoUrl}" alt="Foto Elemento" style="width: 100%; height: 110px; object-fit: cover; border-radius: 6px; margin-bottom: 6px; border: 1px solid #444;" onerror="this.style.display='none'">` : '';
 
-        const pastillaHtml = `<span style="background: ${colorPin}; color: ${colorPin === '#eab308' ? '#000' : (colorPin === '#22c55e' ? '#000' : '#fff')}; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; display: inline-block;">${textoEstado}</span>`;
+        const pastillaHtml = `<span style="background: ${colorPin}; color: #fff; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; display: inline-block;">${textoEstado}</span>`;
 
         const idElemento = item.Etiqueta || item.Idch || item.Nombre || item.id || 'Desconocido';
 
@@ -149,39 +155,29 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
 }
 
 // ==========================================================
-// EXTRACTOR INTELIGENTE DE COORDENADAS (NUEVO Y MEJORADO)
+// EXTRACTOR INTELIGENTE DE COORDENADAS
 // ==========================================================
 function extraerCoordenadas(item) {
     let lat = null;
     let lng = null;
     let puntoString = null;
 
-    // 1. Convertir todas las claves del objeto a minúsculas para ignorar si en Supabase está como "Latitud", "latitud" o "LATITUD"
     const keys = Object.keys(item);
     for (let key of keys) {
         const k = key.toLowerCase();
         
-        // Buscar latitud
         if (k === 'latitud' || k === 'lat') lat = parseFloat(item[key]);
-        
-        // Buscar longitud
         if (k === 'longitud' || k === 'lng' || k === 'lon' || k === 'long') lng = parseFloat(item[key]);
-        
-        // Buscar campos que puedan contener todo junto (ej. AppSheet o Mymaps)
         if (k === 'ubicacion' || k === 'ubicación' || k === 'geom' || k === 'coordenadas' || k === 'coordenada') {
             puntoString = item[key];
         }
     }
 
-    // 2. Si encontramos lat y lng en columnas separadas y son válidas, las devolvemos
     if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
         return [lat, lng];
     }
 
-    // 3. Si venían juntas en una sola columna tipo String (ej: "-31.4201, -64.1888" o "POINT(-64.1888 -31.4201)")
     if (typeof puntoString === 'string') {
-        
-        // Caso A: Formato PostGIS POINT(-64.18 -31.42) - Ojo, en GIS suele ser Longitud primero
         const matchPoint = puntoString.match(/POINT\s*\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/i);
         if (matchPoint) {
             const pLng = parseFloat(matchPoint[1]);
@@ -189,7 +185,6 @@ function extraerCoordenadas(item) {
             if (!isNaN(pLat) && !isNaN(pLng)) return [pLat, pLng];
         }
 
-        // Caso B: Formato AppSheet / Mymaps separados por coma (ej: "-31.428, -64.198") - Suele ser Latitud primero
         const partes = puntoString.split(',');
         if (partes.length >= 2) {
             const pLat = parseFloat(partes[0].trim());
@@ -198,6 +193,5 @@ function extraerCoordenadas(item) {
         }
     }
 
-    // Si nada funciona, retornamos nulo para que el mapa ignore este ítem
     return null;
 }

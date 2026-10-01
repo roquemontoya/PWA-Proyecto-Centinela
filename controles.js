@@ -48,6 +48,9 @@ export async function abrirFormularioControl(tabla, dbId, idElemento) {
     contenedorBomberos.innerHTML = '<p style="color: #aaa; font-size: 13px;">Cargando personal...</p>';
     inputRealizo.value = ''; // Reset
 
+    // Avatar interno por defecto para evitar bloqueos de red externos
+    const fallbackAvatar = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='150' height='150'><rect width='100%' height='100%' fill='%23333'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-family='sans-serif' font-size='12'>Sin Foto</text></svg>";
+
     const { data, error } = await clienteSupabase
         .from('Bomberos')
         .select('*')
@@ -67,7 +70,7 @@ export async function abrirFormularioControl(tabla, dbId, idElemento) {
                 fotoUrl = `https://zgzhudcdxoentmfgdncf.supabase.co/storage/v1/object/public/FotosBomberos/${fotoUrl}`;
             }
             if (!fotoUrl) {
-                fotoUrl = 'https://via.placeholder.com/150?text=Sin+Foto';
+                fotoUrl = fallbackAvatar;
             }
 
             const tarjeta = document.createElement('div');
@@ -80,7 +83,7 @@ export async function abrirFormularioControl(tabla, dbId, idElemento) {
             `;
 
             tarjeta.innerHTML = `
-                <img src="${fotoUrl}" alt="${b.Bombero}" style="width: 45px; height: 45px; border-radius: 50%; object-fit: cover; margin-bottom: 4px; border: 1px solid #555;" onerror="this.src='https://via.placeholder.com/150?text=Error'">
+                <img src="${fotoUrl}" alt="${b.Bombero}" style="width: 45px; height: 45px; border-radius: 50%; object-fit: cover; margin-bottom: 4px; border: 1px solid #555;" onerror="this.src='${fallbackAvatar}'">
                 <div style="font-size: 11px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${b.Bombero}">${b.Bombero.split(' ')[0]}</div>
             `;
 
@@ -129,23 +132,20 @@ export function cerrarFormularioControl() {
 export async function guardarControl(event) {
     event.preventDefault();
     
-    // Botón de submit a estado de carga
     const btnSubmit = document.querySelector('button[type="submit"]');
     const textoOriginal = btnSubmit.innerText;
     btnSubmit.innerText = 'Subiendo...';
     btnSubmit.disabled = true;
     
-    // Captura de datos básicos
     const tablaPadre = document.getElementById('input-tabla').value;
     const dbId = document.getElementById('input-id-db').value; 
     const idch = document.getElementById('input-idch').value;
     const tipoControl = document.getElementById('input-tipocontrol').value;
     const realizo = document.getElementById('input-realizo').value;
-    const estado = document.getElementById('input-estado').value;
+    const estado = document.getElementById('input-estado').value; 
     const observacion = document.getElementById('input-observacion').value;
     const fotoInput = document.getElementById('input-foto').files[0];
 
-    // Componentes Físicos
     const gabinete = document.getElementById('input-gabinete').value;
     const pintura = document.getElementById('input-pintura').value;
     const limpieza = document.getElementById('input-limpieza').value;
@@ -160,7 +160,6 @@ export async function guardarControl(event) {
 
     let fotoUrl = null;
 
-    // 1. SUBIR FOTO AL BUCKET
     if (fotoInput) {
         const nombreArchivo = `${Date.now()}_${fotoInput.name.replace(/\s+/g, '_')}`;
         
@@ -182,9 +181,6 @@ export async function guardarControl(event) {
         fotoUrl = urlData.publicUrl;
     }
 
-    // ========================================================
-    // CREACIÓN DEL IDCH (LLAVE ÚNICA)
-    // ========================================================
     const ahora = new Date();
     const dia = String(ahora.getDate()).padStart(2, '0');
     const mes = String(ahora.getMonth() + 1).padStart(2, '0');
@@ -198,7 +194,6 @@ export async function guardarControl(event) {
     const mesActual = meses[ahora.getMonth()];
     const fechaHoy = ahora.toISOString().split('T')[0];
 
-    // 2. GUARDAR EN LA TABLA HIJA (Controles_H)
     const registroNuevo = {
         "ID": dbId,
         "IDCH": idUnicoGenerado,
@@ -240,30 +235,29 @@ export async function guardarControl(event) {
     }
 
     // ========================================================
-    // 3. ACTUALIZAR EL ESTADO EN LA TABLA PADRE (hidrantes)
-    // Usando la columna real: EstadoReferencia
+    // ACTUALIZACIÓN EN LA TABLA PADRE (hidrantes)
     // ========================================================
     const { error: updateError } = await clienteSupabase
         .from(tablaPadre)
         .update({ EstadoReferencia: estado }) 
-        .eq('id', dbId); 
+        .eq('id', dbId);
 
     if (updateError) {
         console.error("Error al actualizar la tabla padre:", updateError);
     }
 
-    // Guardar el inspector en caché para la próxima vez
     localStorage.setItem('centinela_inspector', realizo);
     
-    // Restaurar el botón y limpiar formulario
     btnSubmit.innerText = textoOriginal;
     btnSubmit.disabled = false;
     cerrarFormularioControl();
 
     // ========================================================
-    // 4. RECARGAR EL MAPA AUTOMÁTICAMENTE
+    // RECARGAR MAPA
     // ========================================================
     if (typeof window.cargarModulo === 'function') {
         window.cargarModulo(tablaPadre);
+    } else {
+        window.location.reload();
     }
 }
