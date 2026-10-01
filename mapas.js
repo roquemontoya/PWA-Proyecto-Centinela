@@ -17,10 +17,56 @@ const MAPEO_MODULOS = {
 
 let mapaActivo = null;
 
+// Función todoterreno para encontrar coordenadas sin importar cómo se llame la columna
+function extraerCoordenadas(item) {
+    let lat = null;
+    let lng = null;
+    let puntoString = null;
+
+    // Buscamos dinámicamente en todas las propiedades de la fila
+    const keys = Object.keys(item);
+    for (let key of keys) {
+        const k = key.toLowerCase();
+        
+        if (k === 'latitud' || k === 'lat') lat = parseFloat(item[key]);
+        if (k === 'longitud' || k === 'lng' || k === 'lon' || k === 'long') lng = parseFloat(item[key]);
+        if (k === 'ubicacion' || k === 'ubicación' || k === 'geom' || k === 'coordenadas' || k === 'coordenada' || k === 'wkt') {
+            puntoString = item[key];
+        }
+    }
+
+    // 1. Si encontró columnas separadas de lat y lng
+    if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
+        return [lat, lng];
+    }
+
+    // 2. Si encontró un string tipo WKT o "lat, lng"
+    if (typeof puntoString === 'string') {
+        // Formato MyMaps WKT: POINT (lon lat)
+        const matchPoint = puntoString.match(/POINT\s*\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/i);
+        if (matchPoint) {
+            const pLng = parseFloat(matchPoint[1]);
+            const pLat = parseFloat(matchPoint[2]);
+            if (!isNaN(pLat) && !isNaN(pLng)) return [pLat, pLng];
+        }
+
+        // Formato clásico: "-31.41, -64.18"
+        const matchComa = puntoString.match(/([-\d.]+)\s*,\s*([-\d.]+)/);
+        if (matchComa) {
+            const val1 = parseFloat(matchComa[1]);
+            const val2 = parseFloat(matchComa[2]);
+            if (!isNaN(val1) && !isNaN(val2)) {
+                return Math.abs(val1) > 90 ? [val2, val1] : [val1, val2];
+            }
+        }
+    }
+    return null; // Si no hay coordenadas válidas
+}
+
 export async function cargarModuloMapa(moduloKey, contenedor) {
     const config = MAPEO_MODULOS[moduloKey] || { tabla: moduloKey, bucket: `Fotos${moduloKey}`, nombreLegible: moduloKey };
     
-    // Configuración de pantalla completa para el contenedor dinámico
+    // Configuración de pantalla completa
     contenedor.style.width = '100%';
     contenedor.style.maxWidth = '100%'; 
     contenedor.style.height = 'calc(100vh - 65px)'.trim(); 
@@ -39,7 +85,7 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
         return;
     }
 
-    // Inyectar el div del mapa ocupando el 100% del contenedor
+    // Inyectar el div del mapa
     contenedor.innerHTML = `<div id="mapa-modulo" style="width: 100%; height: 100%;"></div>`;
 
     if (mapaActivo) {
@@ -47,7 +93,6 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
         mapaActivo = null;
     }
 
-    // Coordenadas iniciales por defecto (Córdoba)
     let centroLat = -31.4168;
     let centroLon = -64.1834;
 
@@ -55,7 +100,7 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
         zoomControl: true
     }).setView([centroLat, centroLon], 17);
 
-    // Capa satelital ESRI World Imagery
+    // Capa satelital ESRI
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
         maxZoom: 22
@@ -63,29 +108,17 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
 
     let bounds = [];
 
-    // Procesar elementos y pines (gotas)
+    // Procesar elementos y pines usando la función todoterreno
     (data || []).forEach(item => {
-        let lat = null;
-        let lon = null;
-
-        if (item.WKT && typeof item.WKT === 'string' && item.WKT.includes('POINT')) {
-            try {
-                const coordsStr = item.WKT.replace('POINT (', '').replace(')', '').trim();
-                const partes = coordsStr.split(/\s+/);
-                if (partes.length >= 2) {
-                    lon = parseFloat(partes[0]);
-                    lat = parseFloat(partes[1]);
-                }
-            } catch (e) {
-                console.error("Error parseando WKT:", item.WKT);
-            }
-        }
-
-        if (lat && lon && !isNaN(lat) && !isNaN(lon)) {
+        const coords = extraerCoordenadas(item);
+        
+        if (coords) {
+            const lat = coords[0];
+            const lon = coords[1];
             bounds.push([lat, lon]);
 
-            let colorPin = '#22c55e'; // Verde (Operativo)
-            let estadoTexto = item.EstadoReferencia || 'Operativo';
+            let colorPin = '#22c55e'; // Verde
+            let estadoTexto = item.EstadoReferencia || item.Estado || 'Operativo';
             
             const estLower = String(estadoTexto).toLowerCase();
             if (estLower.includes('observado')) {
@@ -94,7 +127,6 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
                 colorPin = '#ef4444'; // Rojo
             }
 
-            // Marcador personalizado (gota)
             const iconoPin = L.divIcon({
                 className: 'custom-pin',
                 html: `<div style="background-color: ${colorPin}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 8px rgba(0,0,0,0.9);"></div>`,
@@ -122,7 +154,7 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
         }
     });
 
-    // Forzar actualización de tamaño y salto automático (zoom y centrado en los pines)
+    // Forzar redibujo y salto automático de zoom (con 200ms extra de margen de seguridad para Leaflet)
     setTimeout(() => {
         if (mapaActivo) {
             mapaActivo.invalidateSize();
@@ -130,5 +162,5 @@ export async function cargarModuloMapa(moduloKey, contenedor) {
                 mapaActivo.fitBounds(bounds, { padding: [50, 50], maxZoom: 19 });
             }
         }
-    }, 100);
+    }, 200);
 }
