@@ -75,17 +75,24 @@ function renderizarFormularioExtintorHTML(ext) {
     // Calculamos qué estado debería tener preseleccionado
     const estadoSugerido = preCalcularEstadoExtintor(ext.Vencimiento, ext.EstadoReferencia);
 
-    // ==========================================
     // LÓGICA DE COMBINACIÓN: Etiquetas + Referencia + Sector
-    // ==========================================
     const parteEtiqueta = ext.Etiquetas || ext.etiquetas || ext.NombreEtiqueta || ext.NombreDeEtiqueta || '';
     const parteReferencia = ext.Referencia || ext.referencia || '';
     const parteSector = ext.Sector || ext.sector || '';
     
-    // Unimos los valores ignorando los vacíos, separados por un guion medio
     const nombreCombinado = [parteEtiqueta, parteReferencia, parteSector]
         .filter(val => val && String(val).trim() !== '')
         .join(' - ');
+
+    // ==========================================
+    // LÓGICA INTELIGENTE: TIPO DE EXTINTOR
+    // ==========================================
+    // Detectamos si ya había un dato guardado e intentamos coincidirlo con las 4 opciones
+    const tipoVal = String(ext.TipoExtintor || ext['Tipo de Extintor'] || '').toLowerCase();
+    let selPQS = (tipoVal.includes('pqs') || tipoVal.includes('polvo')) ? 'selected' : '';
+    let selCO2 = (tipoVal.includes('co2') || tipoVal.includes('carbono')) ? 'selected' : '';
+    let selHalon = (tipoVal.includes('halon') || tipoVal.includes('halón')) ? 'selected' : '';
+    let selK = (tipoVal === 'k' || tipoVal.includes('tipo k') || tipoVal.includes('acetato')) ? 'selected' : '';
 
     // Inyectamos el formulario
     contenedorComponentes.innerHTML = `
@@ -124,7 +131,13 @@ function renderizarFormularioExtintorHTML(ext) {
             <input type="text" id="input-control-mensual" value="${ext.ControlMensual || ext['CONTROL MENSUAL (Mes)'] || ''}" placeholder="Ej: Septiembre" style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 13px;">
 
             <label style="display: block; font-size: 12px; color: #ccc;">Tipo de Extintor:</label>
-            <input type="text" id="input-tipo-extintor" value="${ext.TipoExtintor || ext['Tipo de Extintor'] || ''}" placeholder="Ej: CO2, PQS" style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 13px;">
+            <select id="input-tipo-extintor" style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 13px;">
+                <option value="">Seleccione un tipo...</option>
+                <option value="PQS" ${selPQS}>PQS</option>
+                <option value="Co2" ${selCO2}>Co2</option>
+                <option value="Halon" ${selHalon}>Halon</option>
+                <option value="Tipo K" ${selK}>Tipo K</option>
+            </select>
 
             <label style="display: block; font-size: 12px; color: #ccc;">Vencimiento:</label>
             <input type="text" id="input-vencimiento" value="${ext.Vencimiento || ''}" placeholder="Ej: ene-27" style="width: 100%; padding: 6px; margin-bottom: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 13px;">
